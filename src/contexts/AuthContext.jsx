@@ -1,0 +1,89 @@
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import {
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+} from 'firebase/auth';
+import { auth } from '../config/firebase';
+import { checkRoster, syncPlayer } from '../services';
+import { adminEmail } from '../config/app';
+import LoadingSpinner from '../components/LoadingSpinner';
+
+const AuthContext = createContext();
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
+  return context;
+};
+
+export const AuthProvider = ({ children }) => {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [player, setPlayer] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [authToken, setAuthToken] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (isSignInWithEmailLink(auth, window.location.href)) {
+      let email = window.localStorage.getItem('emailForSignIn');
+      if (!email) {
+        email = window.prompt('Please provide your email for confirmation');
+      }
+
+      signInWithEmailLink(auth, email, window.location.href)
+        .then(() => window.localStorage.removeItem('emailForSignIn'))
+        .catch((error) => console.error('Error signing in with email link:', error));
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setCurrentUser(user);
+
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+          setAuthToken(token);
+          setIsAdmin(user.email === adminEmail);
+          const playerData = await syncPlayer(token);
+          setPlayer(playerData);
+        } catch (error) {
+          console.error('Error syncing player:', error);
+          setPlayer(null);
+        }
+      } else {
+        setAuthToken(null);
+        setPlayer(null);
+        setIsAdmin(false);
+      }
+
+      setLoading(false);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const sendSignInLink = async (email) => {
+    const { found } = await checkRoster(email);
+    if (!found) {
+      throw new Error('Email not recognized — check with Ranjit.');
+    }
+
+    const actionCodeSettings = {
+      url: window.location.origin + '/login',
+      handleCodeInApp: true,
+    };
+    await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+  };
+
+  const signOut = () => firebaseSignOut(auth);
+
+  const value = { currentUser, player, authToken, isAdmin, sendSignInLink, signOut, loading };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {loading ? <LoadingSpinner /> : children}
+    </AuthContext.Provider>
+  );
+};

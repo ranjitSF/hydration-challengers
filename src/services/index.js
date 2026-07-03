@@ -1,0 +1,32 @@
+import { apiUrl } from '../config/app';
+
+async function request(path, { method = 'GET', body, token } = {}) {
+  const res = await fetch(`${apiUrl}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data;
+}
+
+export const checkRoster = (email) => request('/players/login-check', { method: 'POST', body: { email } });
+export const syncPlayer = (token) => request('/players/sync', { method: 'POST', token });
+export const getPlayers = () => request('/players');
+export const getMatches = () => request('/matches');
+export const getMyPicks = (token) => request('/picks/me', { token });
+export const submitPicks = (picks, token) => request('/picks', { method: 'POST', body: { picks }, token });
+export const getStandings = () => request('/standings');
+export const getConfig = () => request('/config');
+
+export const adminUpdateMatch = (id, body, token) => request(`/admin/matches/${id}`, { method: 'PUT', body, token });
+export const adminSetResult = (matchId, winner, token) =>
+  request(`/admin/results/${matchId}`, { method: 'PUT', body: { winner }, token });
+export const adminSetStartingPoints = (playerId, startingPoints, token) =>
+  request(`/admin/players/${playerId}/starting-points`, { method: 'PUT', body: { startingPoints }, token });
+export const adminGetStatus = (token) => request('/admin/status', { token });
