@@ -20,6 +20,15 @@ export function espnWinnerName(event) {
   return winner?.team?.displayName || null;
 }
 
+// Total goals in a finished game (regulation + extra time; the shootout isn't
+// counted as goals). Used for the Final total-goals tiebreaker. null if not final.
+export function espnTotalGoals(event) {
+  if (!event || event.status?.type?.state !== 'post') return null;
+  const scores = (event.competitions?.[0]?.competitors || []).map((c) => Number(c.score));
+  if (scores.some((n) => Number.isNaN(n))) return null;
+  return scores.reduce((a, b) => a + b, 0);
+}
+
 // ESPN indexes a game under the local (kickoff-timezone) date, which is exactly the
 // date part of our stored kickoff_at ISO string. e.g. '2026-07-05T20:00:00-04:00'.
 export function espnDateOf(kickoffIso) {

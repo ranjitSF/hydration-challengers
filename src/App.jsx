@@ -14,6 +14,8 @@ function App() {
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
+          {/* The shared link lands here → sign-in → pick flow. */}
+          <Route path="/" element={<Navigate to="/picks" replace />} />
 
           <Route element={<Layout />}>
             <Route path="/standings" element={<Standings />} />

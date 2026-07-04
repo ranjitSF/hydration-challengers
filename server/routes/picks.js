@@ -7,6 +7,8 @@ import { BRACKET_PAIRING, R16_SLOTS, ALL_SLOTS } from '../lib/bracket.js';
 
 const router = express.Router();
 
+const isValidGoals = (g) => Number.isInteger(g) && g >= 0 && g <= 20;
+
 async function loadPlayerContext(email) {
   const [playerDoc, config, picksDoc] = await Promise.all([
     db().collection('players').doc(email).get(),
@@ -22,20 +24,17 @@ async function loadPlayerContext(email) {
     board,
     realR32,
     picksBySlot: picksData.picksBySlot || {},
+    finalGoals: Number.isInteger(picksData.finalGoals) ? picksData.finalGoals : null,
     submitted: picksData.submitted === true,
   };
 }
 
-// Options available to a player for one slot: R16 from their board, later rounds
-// from the teams they've advanced so far (null-tolerant for dead/blank feeders).
 function optionsForSlot(slot, board, resolved) {
   if (R16_SLOTS.includes(slot)) return board.options[slot] || [];
   const [fa, fb] = BRACKET_PAIRING[slot];
   return [resolved[fa], resolved[fb]].filter(Boolean);
 }
 
-// Validate + normalize a submitted picks map against the player's board. In draft
-// mode blanks are allowed; in submit mode every OPEN slot must be filled.
 function resolvePicks(picks, board, { requireComplete }) {
   const resolved = {};
   for (const slot of ALL_SLOTS) {
@@ -60,35 +59,37 @@ function resolvePicks(picks, board, { requireComplete }) {
 router.get('/me', verifyToken, async (req, res) => {
   try {
     const email = req.user.email?.toLowerCase();
-    const { board, picksBySlot, submitted } = await loadPlayerContext(email);
-    res.json({ picksBySlot, submitted, board });
+    const { board, picksBySlot, finalGoals, submitted } = await loadPlayerContext(email);
+    res.json({ picksBySlot, finalGoals, submitted, board });
   } catch (error) {
     console.error('Error fetching picks:', error);
     res.status(500).json({ error: 'Failed to fetch picks' });
   }
 });
 
-// Save picks. body: { picks, submit }. submit:false = auto-saved draft (partial OK,
-// doesn't count). submit:true = final (requires the Colombia/Ghana result to be in
-// AND a complete bracket). Both are blocked once picks lock at R16 kickoff.
+// Save picks. body: { picks, finalGoals, submit }. Draft (submit:false) allows a
+// partial bracket + no goals guess. Submit (submit:true) requires the Colombia/Ghana
+// result to be in, a complete bracket, AND a Final total-goals prediction (tiebreak).
 router.post('/', verifyToken, async (req, res) => {
   try {
-    if (await isLocked()) {
-      return res.status(423).json({ error: 'Picks are locked' });
-    }
+    if (await isLocked()) return res.status(423).json({ error: 'Picks are locked' });
 
     const email = req.user.email?.toLowerCase();
-    const { exists, board, realR32, submitted: alreadySubmitted } = await loadPlayerContext(email);
+    const { exists, board, realR32, submitted: alreadySubmitted, finalGoals: existingGoals } = await loadPlayerContext(email);
     if (!exists) return res.status(403).json({ error: 'Player not found' });
 
     const picks = req.body.picks;
     const submit = req.body.submit === true;
-    if (!picks || typeof picks !== 'object') {
-      return res.status(400).json({ error: 'Missing picks' });
+    if (!picks || typeof picks !== 'object') return res.status(400).json({ error: 'Missing picks' });
+
+    // Final total-goals tiebreaker prediction (optional on a draft, required to submit).
+    let finalGoals = existingGoals;
+    if (req.body.finalGoals !== undefined && req.body.finalGoals !== null && req.body.finalGoals !== '') {
+      const g = Number(req.body.finalGoals);
+      if (!isValidGoals(g)) return res.status(400).json({ error: 'Final total goals must be a whole number 0–20' });
+      finalGoals = g;
     }
 
-    // Final submission is gated on the Colombia/Ghana (M87) result being in, so no
-    // one locks in an incomplete bracket whose M96 leg isn't decided yet.
     if (submit && !realR32.M87) {
       return res.status(425).json({ error: 'Submissions open once the Colombia–Ghana result is in.' });
     }
@@ -96,11 +97,14 @@ router.post('/', verifyToken, async (req, res) => {
     const { resolved, error } = resolvePicks(picks, board, { requireComplete: submit });
     if (error) return res.status(400).json({ error });
 
-    // A draft keeps whatever submitted-state you already had; submitting sets it true.
-    const nowSubmitted = submit ? true : alreadySubmitted;
+    if (submit && !isValidGoals(finalGoals)) {
+      return res.status(400).json({ error: 'Predict the total goals in the Final before submitting (tiebreaker).' });
+    }
 
+    const nowSubmitted = submit ? true : alreadySubmitted;
     await db().collection('picks').doc(email).set({
       picksBySlot: resolved,
+      finalGoals: Number.isInteger(finalGoals) ? finalGoals : null,
       submitted: nowSubmitted,
       updatedAt: new Date().toISOString(),
     });

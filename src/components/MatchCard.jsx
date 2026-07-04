@@ -27,6 +27,7 @@ const MatchCard = ({ label, teamA, teamB, options = [], picked, onPick, disabled
     forced: { text: 'Auto — you backed them', cls: 'bg-wc-accent/15 text-wc-accent' },
     dead: { text: 'Both knocked out — 0 pts', cls: 'bg-red-500/15 text-red-400' },
     pending: { text: 'Opponent decided tonight', cls: 'bg-yellow-500/15 text-yellow-300' },
+    awaiting: { text: 'Awaiting your earlier picks', cls: 'bg-wc-border/50 text-gray-400' },
   }[status];
 
   return (

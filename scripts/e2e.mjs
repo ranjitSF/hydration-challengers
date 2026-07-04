@@ -39,9 +39,10 @@ async function api(path, { method = 'GET', token, body } = {}) {
   });
   return { status: res.status, data: await res.json().catch(() => ({})) };
 }
-const draft = (picks, token) => api('/picks', { method: 'POST', token, body: { picks, submit: false } });
-const submit = (picks, token) => api('/picks', { method: 'POST', token, body: { picks, submit: true } });
+const draft = (picks, token, goals) => api('/picks', { method: 'POST', token, body: { picks, submit: false, finalGoals: goals } });
+const submit = (picks, token, goals) => api('/picks', { method: 'POST', token, body: { picks, submit: true, finalGoals: goals } });
 const standingsFor = async (email) => (await api('/standings')).data.find((s) => s.playerId === email);
+const bracketOf = (email) => api(`/players/${encodeURIComponent(email)}/bracket`);
 
 function buildBracket(r16Options, choices = {}) {
   const resolved = {};
@@ -76,7 +77,8 @@ async function run() {
   const pre = buildBracket(me.board.options, CHOICES); // M96 line absent (pending)
   check('valid partial draft saved', (await draft(pre, playerToken)).status === 200);
   check('draft does NOT count as submitted', (await standingsFor(PLAYER)).hasSubmitted === false);
-  check('SUBMIT blocked before M87 (425)', (await submit(pre, playerToken)).status === 425);
+  check('SUBMIT blocked before M87 (425)', (await submit(pre, playerToken, 3)).status === 425);
+  check('bracket view blocked before lock (403)', (await bracketOf(PLAYER)).status === 403);
 
   console.log('\n3. Admin resolves M87 → Colombia');
   check('non-admin cannot set R32', (await api('/admin/r32/M87', { method: 'PUT', token: playerToken, body: { winner: 'Colombia' } })).status === 403);
@@ -94,20 +96,26 @@ async function run() {
   await api('/admin/results/QF1', { method: 'PUT', token: adminToken, body: { winner: full.QF1 } });
   await api('/admin/results/F1', { method: 'PUT', token: adminToken, body: { winner: full.F1 } });
   check('a drafted (unsubmitted) bracket scores 0', (await standingsFor(PLAYER)).pickPoints === 0);
-  check('SUBMIT now accepted', (await submit(full, playerToken)).status === 200);
+  check('submit without a goals guess rejected (tiebreaker required)', (await submit(full, playerToken)).status === 400);
+  check('SUBMIT with goals accepted', (await submit(full, playerToken, 3)).status === 200);
   const st = await standingsFor(PLAYER);
   check('submitted bracket scores 6+6+10+30 = 52', st.pickPoints === 52, `got ${st.pickPoints}`);
   check('now marked submitted', st.hasSubmitted === true);
+  check('final goals prediction stored', st.finalGoalsPrediction === 3);
 
   console.log('\n5. Incomplete submit rejected');
   const missing = { ...full }; delete missing.M92;
-  check('submit with a missing open match rejected', (await submit(missing, playerToken)).status === 400);
+  check('submit with a missing open match rejected', (await submit(missing, playerToken, 3)).status === 400);
 
-  console.log('\n6. Lock enforcement (draft AND submit)');
+  console.log('\n6. Lock enforcement + bracket visibility');
   const orig = (await cfg.get()).data();
   await cfg.set({ ...orig, lockAt: '2020-01-01T00:00:00-07:00' });
-  check('draft after lock rejected (423)', (await draft(full, playerToken)).status === 423);
-  check('submit after lock rejected (423)', (await submit(full, playerToken)).status === 423);
+  check('draft after lock rejected (423)', (await draft(full, playerToken, 3)).status === 423);
+  check('submit after lock rejected (423)', (await submit(full, playerToken, 3)).status === 423);
+  const bv = await bracketOf(PLAYER);
+  check('bracket visible after lock', bv.status === 200 && bv.data.submitted === true);
+  check('bracket shows M89 correct (+6)', bv.data.bracket.find((b) => b.slot === 'M89')?.correct === true);
+  check('bracket exposes the goals prediction', bv.data.finalGoalsPrediction === 3);
   await cfg.set(orig);
 
   // cleanup — restore pristine pre-launch state

@@ -7,6 +7,9 @@ export function compareStandings(a, b) {
   const acc = (p, r) => p.accuracyByRound[r].correct;
   return (
     b.totalPoints - a.totalPoints ||
+    // Closest Final total-goals prediction wins (Infinity when the Final isn't
+    // played yet or a player didn't predict, so it has no effect until then).
+    (a.goalsDiff ?? Infinity) - (b.goalsDiff ?? Infinity) ||
     acc(b, 'F') - acc(a, 'F') ||
     acc(b, 'SF') - acc(a, 'SF') ||
     acc(b, 'QF') - acc(a, 'QF') ||

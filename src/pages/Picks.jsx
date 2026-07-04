@@ -14,6 +14,7 @@ const Picks = () => {
   const [matches, setMatches] = useState(null);
   const [board, setBoard] = useState(null);
   const [picks, setPicks] = useState({});
+  const [finalGoals, setFinalGoals] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [lockAt, setLockAt] = useState(null);
   const [m87Resolved, setM87Resolved] = useState(false);
@@ -37,6 +38,7 @@ const Picks = () => {
       try {
         const mine = await loadServerState();
         setPicks(mine.picksBySlot || {});
+        setFinalGoals(Number.isInteger(mine.finalGoals) ? String(mine.finalGoals) : '');
         setSubmitted(!!mine.submitted);
         didInit.current = true;
         setStatus((s) => ({ ...s, loading: false }));
@@ -64,18 +66,20 @@ const Picks = () => {
     [board, picks]
   );
   const pickedCount = openSlots.filter((s) => resolved[s]).length;
+  const goalsNum = finalGoals === '' ? null : Number(finalGoals);
+  const goalsValid = Number.isInteger(goalsNum) && goalsNum >= 0 && goalsNum <= 20;
 
-  // Auto-save the draft (debounced) whenever picks change after the initial load.
+  // Auto-save the draft (debounced) whenever picks or the goals guess change.
   useEffect(() => {
     if (!didInit.current || isLocked) return;
     if (draftTimer.current) clearTimeout(draftTimer.current);
     draftTimer.current = setTimeout(() => {
-      saveDraft(resolved, authToken)
+      saveDraft(resolved, goalsValid ? goalsNum : null, authToken)
         .then(() => setStatus((s) => ({ ...s, draftSaved: true })))
         .catch(() => {});
     }, 1200);
     return () => clearTimeout(draftTimer.current);
-  }, [resolved, isLocked, authToken]);
+  }, [resolved, finalGoals, isLocked, authToken]);
 
   const handlePick = (slot, team) => {
     if (isLocked) return;
@@ -86,7 +90,7 @@ const Picks = () => {
   const handleSubmit = async () => {
     setStatus((s) => ({ ...s, saving: true, error: '' }));
     try {
-      await submitPicks(resolved, authToken);
+      await submitPicks(resolved, goalsNum, authToken);
       setSubmitted(true);
       setStatus((s) => ({ ...s, saving: false }));
     } catch (err) {
@@ -105,8 +109,11 @@ const Picks = () => {
     const [teamA, teamB] = isR16 ? board.realTeams[slot] || [null, null] : deriveMatchup(slot, resolved);
     let cardStatus;
     if (isR16 && board.pending[slot]) cardStatus = 'pending';
-    else if (opts.length === 0) cardStatus = 'dead';
-    else if (opts.length === 1) cardStatus = 'forced';
+    else if (opts.length === 0) {
+      // A downstream slot with no options is only truly "dead" once the bracket is
+      // otherwise complete; until then it's just waiting on your earlier-round picks.
+      cardStatus = isR16 || complete ? 'dead' : 'awaiting';
+    } else if (opts.length === 1) cardStatus = 'forced';
     else cardStatus = 'choice';
     const match = matchBySlot[slot];
     return (
@@ -123,11 +130,12 @@ const Picks = () => {
     </div>
   );
 
-  const canSubmit = complete && m87Resolved && !isLocked && !status.saving;
+  const canSubmit = complete && goalsValid && m87Resolved && !isLocked && !status.saving;
   const submitHint = () => {
     if (isLocked) return 'Picks are locked.';
     if (!m87Resolved) return 'Submit opens once the Colombia–Ghana result is in (tonight).';
     if (!complete) return `${pickedCount}/${openSlots.length} matches picked — fill the rest to submit.`;
+    if (!goalsValid) return 'Enter your Final total-goals guess (tiebreaker) to submit.';
     return submitted ? 'Submitted ✓ — you can keep editing until lock.' : 'Ready to submit.';
   };
 
@@ -169,6 +177,25 @@ const Picks = () => {
       {renderRound('SF', SF_SLOTS)}
       <BracketConnector active={!!resolved[FINAL_SLOT]} />
       {renderRound('F', [FINAL_SLOT])}
+
+      <div className="card p-4 space-y-2">
+        <h2 className="text-lg font-bold accent-text">Tiebreaker</h2>
+        <p className="text-sm text-gray-400">
+          Total goals in the actual Championship game (both teams combined). If players tie on points, the closest
+          guess wins.
+        </p>
+        <input
+          type="number"
+          min="0"
+          max="20"
+          inputMode="numeric"
+          value={finalGoals}
+          disabled={isLocked}
+          onChange={(e) => { setFinalGoals(e.target.value); setStatus((s) => ({ ...s, draftSaved: false, error: '' })); }}
+          placeholder="e.g. 3"
+          className="w-32 px-4 py-3 bg-wc-navyDarker border border-wc-border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-wc-accent disabled:opacity-60"
+        />
+      </div>
 
       {!isLocked && (
         <div className="fixed bottom-0 left-0 right-0 bg-wc-navyDarker/95 backdrop-blur border-t border-wc-border p-4">

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import RulesModal from './RulesModal';
 
 const linkClass = ({ isActive }) =>
   `px-3 py-2 rounded-lg text-sm font-medium transition ${
@@ -9,6 +10,17 @@ const linkClass = ({ isActive }) =>
 
 const Layout = () => {
   const { player, isAdmin, signOut } = useAuth();
+  const [showRules, setShowRules] = useState(false);
+
+  // Show the rules once on a player's first authenticated visit.
+  useEffect(() => {
+    if (player && !localStorage.getItem('rulesSeen')) setShowRules(true);
+  }, [player]);
+
+  const closeRules = () => {
+    localStorage.setItem('rulesSeen', '1');
+    setShowRules(false);
+  };
 
   return (
     <div className="min-h-screen">
@@ -19,6 +31,9 @@ const Layout = () => {
             <NavLink to="/picks" className={linkClass}>Picks</NavLink>
             <NavLink to="/standings" className={linkClass}>Standings</NavLink>
             {isAdmin && <NavLink to="/admin" className={linkClass}>Admin</NavLink>}
+            <button onClick={() => setShowRules(true)} className="px-3 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white">
+              Rules
+            </button>
           </nav>
         </div>
         {player && (
@@ -31,6 +46,7 @@ const Layout = () => {
       <main className="max-w-3xl mx-auto px-4 py-6">
         <Outlet />
       </main>
+      <RulesModal open={showRules} onClose={closeRules} />
     </div>
   );
 };

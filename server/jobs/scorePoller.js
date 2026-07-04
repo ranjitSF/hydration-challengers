@@ -1,6 +1,6 @@
 import { db } from '../database/firestore.js';
 import { getAppConfig, resolveM87 } from '../lib/config.js';
-import { fetchEspnEvents, findEspnEvent, espnWinnerName, espnDateOf } from '../lib/espn.js';
+import { fetchEspnEvents, findEspnEvent, espnWinnerName, espnTotalGoals, espnDateOf } from '../lib/espn.js';
 
 // The last Round-of-32 game (Colombia/Ghana). Its result opens M96 and updates the
 // R32 carry-in. Stop auto-polling it after this deadline (then manual entry).
@@ -63,6 +63,15 @@ export async function pollOnce() {
     await writeAutoResult(match.slot, winner);
     out.updated += 1;
     console.log(`✓ Auto-recorded ${match.slot}: ${winner}`);
+
+    // Capture the Final's total goals for the tiebreaker.
+    if (match.slot === 'F1') {
+      const goals = espnTotalGoals(event);
+      if (goals !== null) {
+        await db().collection('config').doc('app').set({ finalTotalGoals: goals }, { merge: true });
+        console.log(`✓ Final total goals: ${goals}`);
+      }
+    }
   }
 
   if (needM87) {

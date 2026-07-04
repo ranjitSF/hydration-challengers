@@ -104,6 +104,14 @@ router.put('/results/:slot', async (req, res) => {
 
     const result = { winner, source: 'manual', updatedAt: new Date().toISOString() };
     await db().collection('results').doc(req.params.slot).set(result);
+
+    // For the Final, optionally capture total goals for the tiebreaker.
+    if (req.params.slot === 'F1' && req.body.totalGoals !== undefined && req.body.totalGoals !== '') {
+      const goals = Number(req.body.totalGoals);
+      if (Number.isInteger(goals) && goals >= 0) {
+        await db().collection('config').doc('app').set({ finalTotalGoals: goals }, { merge: true });
+      }
+    }
     res.json(result);
   } catch (error) {
     console.error('Error setting result:', error);

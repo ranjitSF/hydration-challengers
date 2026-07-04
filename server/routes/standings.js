@@ -16,6 +16,7 @@ router.get('/', async (req, res) => {
     ]);
 
     const realR32 = config.realR32 || {};
+    const finalTotalGoals = Number.isInteger(config.finalTotalGoals) ? config.finalTotalGoals : null;
     const resultsBySlot = Object.fromEntries(resultsSnap.docs.map((d) => [d.id, d.data().winner]));
     const picksByEmail = Object.fromEntries(picksSnap.docs.map((d) => [d.id, d.data()]));
 
@@ -28,6 +29,9 @@ router.get('/', async (req, res) => {
       const { total, accuracyByRound } = scorePlayerPicks(picksBySlot, resultsBySlot);
       const r32Points = r32CarryIn(player.r32Picks || {}, realR32); // live from data
       const adjustment = player.starting_points || 0; // optional manual tweak
+      const prediction = submitted && Number.isInteger(picksDoc.finalGoals) ? picksDoc.finalGoals : null;
+      const goalsDiff =
+        finalTotalGoals !== null && prediction !== null ? Math.abs(prediction - finalTotalGoals) : null;
       return {
         playerId: doc.id,
         displayName: player.display_name,
@@ -36,6 +40,8 @@ router.get('/', async (req, res) => {
         pickPoints: total,
         totalPoints: r32Points + adjustment + total,
         accuracyByRound,
+        finalGoalsPrediction: prediction,
+        goalsDiff,
         hasSubmitted: submitted,
       };
     });

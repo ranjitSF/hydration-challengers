@@ -20,6 +20,14 @@ test('higher total points ranks first', () => {
   assert.deepEqual(players.map((p) => p.displayName), ['B', 'C', 'A']);
 });
 
+test('ties broken by closest Final total-goals guess, ahead of round accuracy', () => {
+  const near = { ...mk('near@x', 'Near', 60, { R16: 3 }), goalsDiff: 1 };
+  const far = { ...mk('far@x', 'Far', 60, { R16: 8 }), goalsDiff: 4 }; // more R16 right, worse guess
+  const [first, second] = [far, near].sort(compareStandings);
+  assert.equal(first.displayName, 'Near'); // closer goals guess wins the tie first
+  assert.equal(second.displayName, 'Far');
+});
+
 test('ties broken by later-round correctness (Champion first)', () => {
   // Same total; player who nailed the champion outranks one who nailed more R16.
   const champ = mk('champ@x', 'Champ', 60, { F: 1, R16: 5 });

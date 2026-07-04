@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { getStandings } from '../services';
 import LoadingSpinner from '../components/LoadingSpinner';
+import PlayerBracketModal from '../components/PlayerBracketModal';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 const POLL_MS = 25000;
@@ -10,6 +11,7 @@ const MEDALS = ['🥇', '🥈', '🥉'];
 const Standings = () => {
   const [standings, setStandings] = useState(null);
   const [error, setError] = useState('');
+  const [viewing, setViewing] = useState(null); // { id, name } of a player to inspect
 
   useEffect(() => {
     let cancelled = false;
@@ -50,7 +52,8 @@ const Standings = () => {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.1 * i }}
-                className={`card text-center p-4 ${isFirst ? 'order-2 w-32' : 'w-28'}`}
+                onClick={() => setViewing({ id: player.playerId, name: player.displayName })}
+                className={`card text-center p-4 cursor-pointer hover:border-wc-accent/50 ${isFirst ? 'order-2 w-32' : 'w-28'}`}
               >
                 <div className="text-3xl mb-1">{MEDALS[top3.indexOf(player)]}</div>
                 <div className="font-semibold truncate">{player.displayName}</div>
@@ -81,7 +84,8 @@ const Standings = () => {
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.02 * i }}
-                className="border-b border-wc-border/50 last:border-0"
+                onClick={() => setViewing({ id: s.playerId, name: s.displayName })}
+                className="border-b border-wc-border/50 last:border-0 cursor-pointer hover:bg-wc-accent/5"
               >
                 <td className="px-4 py-2 text-gray-400">{i + 1}</td>
                 <td className="px-4 py-2 font-medium">
@@ -101,7 +105,7 @@ const Standings = () => {
 
       <p className="text-center text-xs text-gray-500">
         Scoring: Round of 32 (carried in) = 3 pts/correct · R16 = 6 · QF = 10 · SF = 16 · Champion = 30.
-        Ties are broken by most correct in the later rounds (Champion → SF → QF → R16).
+        Ties broken by closest Final total-goals guess, then later-round accuracy. Tap a player to see their bracket.
       </p>
 
       <div className="card p-4">
@@ -116,6 +120,12 @@ const Standings = () => {
           </BarChart>
         </ResponsiveContainer>
       </div>
+
+      <PlayerBracketModal
+        playerId={viewing?.id}
+        displayName={viewing?.name}
+        onClose={() => setViewing(null)}
+      />
     </div>
   );
 };
