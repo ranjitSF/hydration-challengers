@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { getMatches, getMyPicks, submitPicks, getConfig } from '../services';
+import { getMatches, getMyPicks, saveDraft, submitPicks, getConfig } from '../services';
 import MatchCard from '../components/MatchCard';
 import BracketConnector from '../components/BracketConnector';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -14,18 +14,31 @@ const Picks = () => {
   const [matches, setMatches] = useState(null);
   const [board, setBoard] = useState(null);
   const [picks, setPicks] = useState({});
+  const [submitted, setSubmitted] = useState(false);
   const [lockAt, setLockAt] = useState(null);
+  const [m87Resolved, setM87Resolved] = useState(false);
   const [nowTs, setNowTs] = useState(Date.now());
-  const [status, setStatus] = useState({ loading: true, error: '', saving: false, saved: false });
+  const [status, setStatus] = useState({ loading: true, error: '', saving: false, draftSaved: false });
+
+  const draftTimer = useRef(null);
+  const didInit = useRef(false);
+
+  const loadServerState = async () => {
+    const [matchList, mine, config] = await Promise.all([getMatches(), getMyPicks(authToken), getConfig()]);
+    setMatches(matchList);
+    setBoard(mine.board);
+    setLockAt(config.lockAt ? new Date(config.lockAt) : null);
+    setM87Resolved(!!config.m87Resolved);
+    return mine;
+  };
 
   useEffect(() => {
     (async () => {
       try {
-        const [matchList, mine, config] = await Promise.all([getMatches(), getMyPicks(authToken), getConfig()]);
-        setMatches(matchList);
-        setBoard(mine.board);
+        const mine = await loadServerState();
         setPicks(mine.picksBySlot || {});
-        setLockAt(config.lockAt ? new Date(config.lockAt) : null);
+        setSubmitted(!!mine.submitted);
+        didInit.current = true;
         setStatus((s) => ({ ...s, loading: false }));
       } catch (err) {
         setStatus((s) => ({ ...s, loading: false, error: err.message }));
@@ -33,10 +46,15 @@ const Picks = () => {
     })();
   }, [authToken]);
 
+  // Clock (flips to read-only at lock) + live board/config refresh so M96 opens and
+  // Submit unlocks the moment the Colombia–Ghana result lands, without a refresh.
   useEffect(() => {
-    const id = setInterval(() => setNowTs(Date.now()), 10000);
-    return () => clearInterval(id);
-  }, []);
+    const clock = setInterval(() => setNowTs(Date.now()), 10000);
+    const refresh = setInterval(() => {
+      loadServerState().catch(() => {});
+    }, 30000);
+    return () => { clearInterval(clock); clearInterval(refresh); };
+  }, [authToken]);
 
   const isLocked = lockAt ? nowTs >= lockAt.getTime() : false;
   const matchBySlot = useMemo(() => (matches ? Object.fromEntries(matches.map((m) => [m.slot, m])) : {}), [matches]);
@@ -45,20 +63,32 @@ const Picks = () => {
     () => resolveBracket(board?.options || {}, picks),
     [board, picks]
   );
-
   const pickedCount = openSlots.filter((s) => resolved[s]).length;
+
+  // Auto-save the draft (debounced) whenever picks change after the initial load.
+  useEffect(() => {
+    if (!didInit.current || isLocked) return;
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+    draftTimer.current = setTimeout(() => {
+      saveDraft(resolved, authToken)
+        .then(() => setStatus((s) => ({ ...s, draftSaved: true })))
+        .catch(() => {});
+    }, 1200);
+    return () => clearTimeout(draftTimer.current);
+  }, [resolved, isLocked, authToken]);
 
   const handlePick = (slot, team) => {
     if (isLocked) return;
     setPicks((prev) => ({ ...prev, [slot]: team }));
-    setStatus((s) => ({ ...s, saved: false }));
+    setStatus((s) => ({ ...s, draftSaved: false, error: '' }));
   };
 
   const handleSubmit = async () => {
-    setStatus((s) => ({ ...s, saving: true, error: '', saved: false }));
+    setStatus((s) => ({ ...s, saving: true, error: '' }));
     try {
       await submitPicks(resolved, authToken);
-      setStatus((s) => ({ ...s, saving: false, saved: true }));
+      setSubmitted(true);
+      setStatus((s) => ({ ...s, saving: false }));
     } catch (err) {
       const locked = /lock/i.test(err.message || '');
       setStatus((s) => ({ ...s, saving: false, error: locked ? 'Picks just locked — your bracket is now read-only.' : err.message }));
@@ -80,19 +110,9 @@ const Picks = () => {
     else cardStatus = 'choice';
     const match = matchBySlot[slot];
     return (
-      <MatchCard
-        key={slot}
-        label={slot}
-        teamA={teamA}
-        teamB={teamB}
-        options={opts}
-        picked={resolved[slot]}
-        onPick={(team) => handlePick(slot, team)}
-        disabled={isLocked}
-        status={cardStatus}
-        kickoff={match?.kickoff_at}
-        venue={match?.venue}
-      />
+      <MatchCard key={slot} label={slot} teamA={teamA} teamB={teamB} options={opts}
+        picked={resolved[slot]} onPick={(team) => handlePick(slot, team)} disabled={isLocked}
+        status={cardStatus} kickoff={match?.kickoff_at} venue={match?.venue} />
     );
   };
 
@@ -103,19 +123,39 @@ const Picks = () => {
     </div>
   );
 
+  const canSubmit = complete && m87Resolved && !isLocked && !status.saving;
+  const submitHint = () => {
+    if (isLocked) return 'Picks are locked.';
+    if (!m87Resolved) return 'Submit opens once the Colombia–Ghana result is in (tonight).';
+    if (!complete) return `${pickedCount}/${openSlots.length} matches picked — fill the rest to submit.`;
+    return submitted ? 'Submitted ✓ — you can keep editing until lock.' : 'Ready to submit.';
+  };
+
   return (
     <div className="space-y-6 pb-28">
       <div className="card p-4 text-sm text-gray-300 space-y-1">
         <p className="font-semibold text-white">How your bracket works</p>
         <p>
-          This is a continuation of your Round-of-32 picks. In each match you can only advance a team you
-          <span className="text-wc-accent"> correctly picked</span> to get here — teams you had knocked out are greyed
-          out. Where both your teams are gone, that match is <span className="text-gray-400">skipped (0 pts)</span>.
-          Matches where you backed only one survivor are filled in automatically. Pick a winner wherever you have a
-          real choice, then <span className="text-white">Submit</span> — you can change picks until Sat 9:45am PT.
+          This continues your Round-of-32 picks — in each match you can only advance a team you
+          <span className="text-wc-accent"> correctly picked</span> to get here; teams you had knocked out are greyed
+          out, and a match where both your teams are gone is <span className="text-gray-400">skipped (0 pts)</span>.
+          Single-survivor matches are filled in automatically. Your progress <span className="text-wc-accent">auto-saves</span>.
+          Your last match opens once the <span className="text-white">Colombia–Ghana</span> result is in — then hit
+          <span className="text-white"> Submit</span>. Picks lock at Sat 9:45am PT (first R16 kickoff).
         </p>
       </div>
 
+      {!isLocked && submitted && (
+        <div className="bg-wc-accent/10 border border-wc-accent/30 rounded-lg p-3 text-wc-accent text-sm">
+          ✓ Your bracket is submitted. You can still tweak it until lock.
+        </div>
+      )}
+      {!isLocked && !submitted && (
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 text-yellow-300 text-sm">
+          ⚠️ Draft not submitted yet — it won't count until you hit <span className="font-semibold">Submit</span>
+          {m87Resolved ? '.' : ' (opens after the Colombia–Ghana result).'}
+        </div>
+      )}
       {isLocked && (
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 text-yellow-300 text-sm">
           Picks are locked — this is now read-only.
@@ -134,16 +174,13 @@ const Picks = () => {
         <div className="fixed bottom-0 left-0 right-0 bg-wc-navyDarker/95 backdrop-blur border-t border-wc-border p-4">
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-4">
             <div className="text-sm text-gray-400">
-              {complete ? 'All open matches picked.' : `${pickedCount}/${openSlots.length} open matches picked.`}
+              {submitHint()}
               {status.error && <div className="text-red-400">{status.error}</div>}
-              {status.saved && <div className="text-wc-accent">Saved! You can resubmit anytime before lock.</div>}
+              {!status.error && status.draftSaved && !submitted && <div className="text-gray-500 text-xs">Draft saved.</div>}
             </div>
-            <button
-              onClick={handleSubmit}
-              disabled={!complete || status.saving}
-              className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
-            >
-              {status.saving ? 'Submitting...' : 'Submit picks'}
+            <button onClick={handleSubmit} disabled={!canSubmit}
+              className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap">
+              {status.saving ? 'Submitting...' : submitted ? 'Resubmit' : 'Submit picks'}
             </button>
           </div>
         </div>

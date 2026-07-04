@@ -20,7 +20,8 @@ export const syncPlayer = (token) => request('/players/sync', { method: 'POST', 
 export const getPlayers = () => request('/players');
 export const getMatches = () => request('/matches');
 export const getMyPicks = (token) => request('/picks/me', { token });
-export const submitPicks = (picks, token) => request('/picks', { method: 'POST', body: { picks }, token });
+export const saveDraft = (picks, token) => request('/picks', { method: 'POST', body: { picks, submit: false }, token });
+export const submitPicks = (picks, token) => request('/picks', { method: 'POST', body: { picks, submit: true }, token });
 export const getStandings = () => request('/standings');
 export const getConfig = () => request('/config');
 

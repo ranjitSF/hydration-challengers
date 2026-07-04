@@ -1,7 +1,6 @@
-// End-to-end test of the continuation-bracket model against a LOCAL server + REAL
-// Firestore. Mints real Firebase tokens (no email needed). Exercises per-player
-// board (forced/choice/dead/pending), validation, the M87 resolve, scoring, and
-// lock. Cleans up after itself. Run: node scripts/e2e.mjs  (server on :3001)
+// End-to-end test of the continuation bracket + two-phase (draft → gated submit)
+// flow against a LOCAL server + REAL Firestore. Mints real Firebase tokens.
+// Cleans up after itself. Run: node scripts/e2e.mjs  (server on :3001)
 import dotenv from 'dotenv';
 dotenv.config();
 dotenv.config({ path: '.env.local' });
@@ -13,7 +12,7 @@ initializeFirebase();
 const API = 'http://localhost:3001/api';
 const API_KEY = process.env.VITE_FIREBASE_API_KEY;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
-const PLAYER = 'appunni.nair@gmail.com'; // Kulapulli Appan — 10/14 R32, good test spread
+const PLAYER = 'appunni.nair@gmail.com';
 
 let pass = 0, fail = 0;
 const check = (name, cond, detail = '') => {
@@ -40,8 +39,10 @@ async function api(path, { method = 'GET', token, body } = {}) {
   });
   return { status: res.status, data: await res.json().catch(() => ({})) };
 }
+const draft = (picks, token) => api('/picks', { method: 'POST', token, body: { picks, submit: false } });
+const submit = (picks, token) => api('/picks', { method: 'POST', token, body: { picks, submit: true } });
+const standingsFor = async (email) => (await api('/standings')).data.find((s) => s.playerId === email);
 
-// Build a valid resolved bracket from the player's R16 options + choices for 2-way slots.
 function buildBracket(r16Options, choices = {}) {
   const resolved = {};
   for (const slot of ALL_SLOTS) {
@@ -53,59 +54,63 @@ function buildBracket(r16Options, choices = {}) {
   }
   return resolved;
 }
+const CHOICES = { M92: 'Mexico', M93: 'Spain', M94: 'USA', M95: 'Argentina' };
 
 async function run() {
   const playerToken = await idTokenFor(PLAYER);
   const adminToken = await idTokenFor(ADMIN_EMAIL);
   const cfg = admin.firestore().collection('config').doc('app');
 
-  console.log('\n1. Sync + board shape (M87 still pending)');
-  await api('/players/sync', { method: 'POST', token: playerToken });
+  console.log('\n1. Board shape (M87 pending)');
   let me = (await api('/picks/me', { token: playerToken })).data;
-  check('M89 forced to France (backed France, not Paraguay)', JSON.stringify(me.board.options.M89) === '["France"]', JSON.stringify(me.board.options.M89));
-  check('M92 is a real 2-way choice (Mexico/England)', JSON.stringify(me.board.options.M92) === '["Mexico","England"]');
-  check('M90 auto-includes Canada (missing R32 game)', me.board.options.M90.includes('Canada'));
-  check('M96 pending with no option yet (M87 undecided)', me.board.pending.M96 === true && me.board.options.M96.length === 0);
+  await api('/players/sync', { method: 'POST', token: playerToken });
+  me = (await api('/picks/me', { token: playerToken })).data;
+  check('M89 forced to France', JSON.stringify(me.board.options.M89) === '["France"]');
+  check('M92 a real 2-way choice', JSON.stringify(me.board.options.M92) === '["Mexico","England"]');
+  check('M96 pending (no option yet)', me.board.pending.M96 === true && me.board.options.M96.length === 0);
+  check('config exposes m87Resolved=false', (await api('/config')).data.m87Resolved === false);
 
-  console.log('\n2. Validation');
-  const badTeam = buildBracket(me.board.options);
-  badTeam.M89 = 'Paraguay'; // real survivor he did NOT back
-  check('pick of an un-backed team rejected', (await api('/picks', { method: 'POST', token: playerToken, body: { picks: badTeam } })).status === 400);
-  const withPending = buildBracket(me.board.options); withPending.M96 = 'Colombia';
-  check('pick for a pending/dead slot rejected', (await api('/picks', { method: 'POST', token: playerToken, body: { picks: withPending } })).status === 400);
+  console.log('\n2. Draft phase (before Colombia–Ghana)');
+  const badTeam = { ...buildBracket(me.board.options, CHOICES), M89: 'Paraguay' };
+  check('draft with un-backed team rejected', (await draft(badTeam, playerToken)).status === 400);
+  const pre = buildBracket(me.board.options, CHOICES); // M96 line absent (pending)
+  check('valid partial draft saved', (await draft(pre, playerToken)).status === 200);
+  check('draft does NOT count as submitted', (await standingsFor(PLAYER)).hasSubmitted === false);
+  check('SUBMIT blocked before M87 (425)', (await submit(pre, playerToken)).status === 425);
 
-  console.log('\n3. Valid submit before M87 (M96 omitted)');
-  const pre = buildBracket(me.board.options, { M92: 'Mexico', M93: 'Spain', M94: 'USA', M95: 'Argentina' });
-  check('valid bracket (dead M96 skipped) accepted', (await api('/picks', { method: 'POST', token: playerToken, body: { picks: pre } })).status === 200, JSON.stringify(pre));
-
-  console.log('\n4. Admin resolves M87 → Colombia, M96 opens up');
+  console.log('\n3. Admin resolves M87 → Colombia');
   check('non-admin cannot set R32', (await api('/admin/r32/M87', { method: 'PUT', token: playerToken, body: { winner: 'Colombia' } })).status === 403);
   await api('/admin/r32/M87', { method: 'PUT', token: adminToken, body: { winner: 'Colombia' } });
   me = (await api('/picks/me', { token: playerToken })).data;
-  check('M96 now offers Colombia, not pending', JSON.stringify(me.board.options.M96) === '["Colombia"]' && me.board.pending.M96 === false, JSON.stringify(me.board.options.M96));
+  check('M96 opens to Colombia', JSON.stringify(me.board.options.M96) === '["Colombia"]');
+  check('config now m87Resolved=true', (await api('/config')).data.m87Resolved === true);
+  check('draft picks survived the resolve', me.picksBySlot.M89 === 'France');
 
-  console.log('\n5. Full submit + scoring');
-  const full = buildBracket(me.board.options, { M92: 'Mexico', M93: 'Spain', M94: 'USA', M95: 'Argentina' });
-  check('full bracket (incl. M96 Colombia) accepted', (await api('/picks', { method: 'POST', token: playerToken, body: { picks: full } })).status === 200);
-  await api('/admin/results/M89', { method: 'PUT', token: adminToken, body: { winner: 'France' } });  // he picked France +6
-  await api('/admin/results/M92', { method: 'PUT', token: adminToken, body: { winner: 'Mexico' } });  // +6
-  await api('/admin/results/QF1', { method: 'PUT', token: adminToken, body: { winner: full.QF1 } });  // his QF1 pick +10
-  await api('/admin/results/F1', { method: 'PUT', token: adminToken, body: { winner: full.F1 } });     // his champion +30
-  const st = (await api('/standings')).data.find((s) => s.playerId === PLAYER);
-  check('pick points = 6+6+10+30 = 52', st.pickPoints === 52, `got ${st.pickPoints}`);
+  console.log('\n4. Submit + scoring (only submitted counts)');
+  const full = buildBracket(me.board.options, CHOICES);
+  check('draft full bracket still not counted', (await draft(full, playerToken)).status === 200 && (await standingsFor(PLAYER)).hasSubmitted === false);
+  await api('/admin/results/M89', { method: 'PUT', token: adminToken, body: { winner: 'France' } });
+  await api('/admin/results/M92', { method: 'PUT', token: adminToken, body: { winner: 'Mexico' } });
+  await api('/admin/results/QF1', { method: 'PUT', token: adminToken, body: { winner: full.QF1 } });
+  await api('/admin/results/F1', { method: 'PUT', token: adminToken, body: { winner: full.F1 } });
+  check('a drafted (unsubmitted) bracket scores 0', (await standingsFor(PLAYER)).pickPoints === 0);
+  check('SUBMIT now accepted', (await submit(full, playerToken)).status === 200);
+  const st = await standingsFor(PLAYER);
+  check('submitted bracket scores 6+6+10+30 = 52', st.pickPoints === 52, `got ${st.pickPoints}`);
+  check('now marked submitted', st.hasSubmitted === true);
 
-  console.log('\n6. Wrong result scores nobody');
-  await api('/admin/results/M90', { method: 'PUT', token: adminToken, body: { winner: 'Morocco' } }); // he was forced Canada
-  const st2 = (await api('/standings')).data.find((s) => s.playerId === PLAYER);
-  check('no points for a losing forced pick', st2.pickPoints === 52);
+  console.log('\n5. Incomplete submit rejected');
+  const missing = { ...full }; delete missing.M92;
+  check('submit with a missing open match rejected', (await submit(missing, playerToken)).status === 400);
 
-  console.log('\n7. Lock enforcement');
+  console.log('\n6. Lock enforcement (draft AND submit)');
   const orig = (await cfg.get()).data();
   await cfg.set({ ...orig, lockAt: '2020-01-01T00:00:00-07:00' });
-  check('submit after lock rejected (423)', (await api('/picks', { method: 'POST', token: playerToken, body: { picks: full } })).status === 423);
+  check('draft after lock rejected (423)', (await draft(full, playerToken)).status === 423);
+  check('submit after lock rejected (423)', (await submit(full, playerToken)).status === 423);
   await cfg.set(orig);
 
-  // cleanup: remove test picks/results and the M87 we set (keep launch state pristine)
+  // cleanup
   await admin.firestore().collection('picks').doc(PLAYER).delete().catch(() => {});
   const rs = await admin.firestore().collection('results').get();
   const b = admin.firestore().batch(); rs.docs.forEach((d) => b.delete(d.ref)); if (rs.size) await b.commit();

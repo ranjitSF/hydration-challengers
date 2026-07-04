@@ -86,7 +86,7 @@ const Standings = () => {
                 <td className="px-4 py-2 text-gray-400">{i + 1}</td>
                 <td className="px-4 py-2 font-medium">
                   {s.displayName}
-                  {!s.hasSubmitted && <span className="ml-2 text-xs text-yellow-400">no picks</span>}
+                  {!s.hasSubmitted && <span className="ml-2 text-xs text-yellow-400">not submitted</span>}
                 </td>
                 <td className="px-4 py-2">{s.hasSubmitted ? `${s.accuracyByRound.R16.correct}/8` : '—'}</td>
                 <td className="px-4 py-2">{s.hasSubmitted ? `${s.accuracyByRound.QF.correct}/4` : '—'}</td>

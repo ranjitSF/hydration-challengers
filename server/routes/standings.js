@@ -17,11 +17,14 @@ router.get('/', async (req, res) => {
 
     const realR32 = config.realR32 || {};
     const resultsBySlot = Object.fromEntries(resultsSnap.docs.map((d) => [d.id, d.data().winner]));
-    const picksByEmail = Object.fromEntries(picksSnap.docs.map((d) => [d.id, d.data().picksBySlot || {}]));
+    const picksByEmail = Object.fromEntries(picksSnap.docs.map((d) => [d.id, d.data()]));
 
     const standings = playersSnap.docs.map((doc) => {
       const player = doc.data();
-      const picksBySlot = picksByEmail[doc.id] || {};
+      const picksDoc = picksByEmail[doc.id] || {};
+      const submitted = picksDoc.submitted === true;
+      // Only a submitted bracket scores; an auto-saved draft counts for nothing.
+      const picksBySlot = submitted ? picksDoc.picksBySlot || {} : {};
       const { total, accuracyByRound } = scorePlayerPicks(picksBySlot, resultsBySlot);
       const r32Points = r32CarryIn(player.r32Picks || {}, realR32); // live from data
       const adjustment = player.starting_points || 0; // optional manual tweak
@@ -33,7 +36,7 @@ router.get('/', async (req, res) => {
         pickPoints: total,
         totalPoints: r32Points + adjustment + total,
         accuracyByRound,
-        hasSubmitted: Object.keys(picksBySlot).length > 0,
+        hasSubmitted: submitted,
       };
     });
 
