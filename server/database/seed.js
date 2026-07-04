@@ -16,8 +16,11 @@ const MATCHES = [
   { slot: 'M92', round: 'R16', team_a: 'Mexico', team_b: 'England', kickoff_at: '2026-07-05T20:00:00-04:00', venue: 'Mexico City' },
   { slot: 'M93', round: 'R16', team_a: 'Spain', team_b: 'Portugal', kickoff_at: '2026-07-06T15:00:00-04:00', venue: 'Arlington' },
   { slot: 'M94', round: 'R16', team_a: 'USA', team_b: 'Belgium', kickoff_at: '2026-07-06T20:00:00-04:00', venue: 'Seattle' },
-  { slot: 'M95', round: 'R16', team_a: 'TBD', team_b: 'Egypt', kickoff_at: '2026-07-07T12:00:00-04:00', venue: 'Atlanta' },
-  { slot: 'M96', round: 'R16', team_a: 'Switzerland', team_b: 'TBD', kickoff_at: '2026-07-07T16:00:00-04:00', venue: 'Vancouver' },
+  // Argentina beat Cape Verde 3-2 (AET) in the R32, so M95 is fully resolved.
+  { slot: 'M95', round: 'R16', team_a: 'Argentina', team_b: 'Egypt', kickoff_at: '2026-07-07T12:00:00-04:00', venue: 'Atlanta' },
+  // Colombia vs Ghana (R32) is still to be played; the winner is a live placeholder
+  // that the admin resolves via the admin page — early picks auto-migrate (see admin.js cascade).
+  { slot: 'M96', round: 'R16', team_a: 'Switzerland', team_b: 'Colombia/Ghana Winner', kickoff_at: '2026-07-07T16:00:00-04:00', venue: 'Vancouver' },
   // QF pairing verified against FIFA's official bracket (M97-M100):
   // QF1 = W(M89) v W(M90), QF2 = W(M93) v W(M94), QF3 = W(M91) v W(M92), QF4 = W(M95) v W(M96)
   { slot: 'QF1', round: 'QF', team_a: null, team_b: null, kickoff_at: '2026-07-09T15:00:00-04:00', venue: 'Boston' },

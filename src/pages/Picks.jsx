@@ -13,6 +13,7 @@ const Picks = () => {
   const [matches, setMatches] = useState(null);
   const [picksBySlot, setPicksBySlot] = useState({});
   const [lockAt, setLockAt] = useState(null);
+  const [nowTs, setNowTs] = useState(Date.now());
   const [status, setStatus] = useState({ loading: true, error: '', saving: false, saved: false });
 
   useEffect(() => {
@@ -33,7 +34,13 @@ const Picks = () => {
     })();
   }, [authToken]);
 
-  const isLocked = lockAt ? new Date() >= lockAt : false;
+  // Advance a clock so the page flips to read-only at lock time without a refresh.
+  useEffect(() => {
+    const id = setInterval(() => setNowTs(Date.now()), 10000);
+    return () => clearInterval(id);
+  }, []);
+
+  const isLocked = lockAt ? nowTs >= lockAt.getTime() : false;
 
   const matchBySlot = useMemo(
     () => (matches ? Object.fromEntries(matches.map((m) => [m.slot, m])) : {}),
@@ -57,7 +64,8 @@ const Picks = () => {
   };
 
   const allSlots = [...R16_SLOTS, ...QF_SLOTS, ...SF_SLOTS, FINAL_SLOT];
-  const complete = allSlots.every((slot) => picksBySlot[slot]);
+  const pickedCount = allSlots.filter((slot) => picksBySlot[slot]).length;
+  const complete = pickedCount === allSlots.length;
 
   const handleSubmit = async () => {
     setStatus((s) => ({ ...s, saving: true, error: '', saved: false }));
@@ -65,7 +73,13 @@ const Picks = () => {
       await submitPicks(picksBySlot, authToken);
       setStatus((s) => ({ ...s, saving: false, saved: true }));
     } catch (err) {
-      setStatus((s) => ({ ...s, saving: false, error: err.message }));
+      const locked = /lock/i.test(err.message || '');
+      setStatus((s) => ({
+        ...s,
+        saving: false,
+        error: locked ? 'Picks just locked — your bracket is now read-only.' : err.message,
+      }));
+      if (locked) setNowTs(lockAt ? lockAt.getTime() : Date.now());
     }
   };
 
@@ -119,7 +133,7 @@ const Picks = () => {
         <div className="fixed bottom-0 left-0 right-0 bg-wc-navyDarker/95 backdrop-blur border-t border-wc-border p-4">
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-4">
             <div className="text-sm text-gray-400">
-              {complete ? 'All 15 picks made.' : 'Every match needs a pick before you can submit.'}
+              {complete ? 'All 15 picks made.' : `${pickedCount}/15 picks made — fill every match to submit.`}
               {status.error && <div className="text-red-400">{status.error}</div>}
               {status.saved && <div className="text-wc-accent">Saved! You can resubmit anytime before lock.</div>}
             </div>

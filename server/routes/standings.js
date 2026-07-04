@@ -1,6 +1,7 @@
 import express from 'express';
 import { db } from '../database/firestore.js';
 import { scorePlayerPicks } from '../lib/scoring.js';
+import { compareStandings } from '../lib/standings.js';
 
 const router = express.Router();
 
@@ -31,7 +32,7 @@ router.get('/', async (req, res) => {
       };
     });
 
-    standings.sort((a, b) => b.totalPoints - a.totalPoints);
+    standings.sort(compareStandings);
 
     res.json(standings);
   } catch (error) {

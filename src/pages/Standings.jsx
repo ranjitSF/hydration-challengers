@@ -88,16 +88,21 @@ const Standings = () => {
                   {s.displayName}
                   {!s.hasSubmitted && <span className="ml-2 text-xs text-yellow-400">no picks</span>}
                 </td>
-                <td className="px-4 py-2">{s.accuracyByRound.R16.correct}/{s.accuracyByRound.R16.total || 8}</td>
-                <td className="px-4 py-2">{s.accuracyByRound.QF.correct}/{s.accuracyByRound.QF.total || 4}</td>
-                <td className="px-4 py-2">{s.accuracyByRound.SF.correct}/{s.accuracyByRound.SF.total || 2}</td>
-                <td className="px-4 py-2">{s.accuracyByRound.F.correct}/{s.accuracyByRound.F.total || 1}</td>
+                <td className="px-4 py-2">{s.hasSubmitted ? `${s.accuracyByRound.R16.correct}/8` : '—'}</td>
+                <td className="px-4 py-2">{s.hasSubmitted ? `${s.accuracyByRound.QF.correct}/4` : '—'}</td>
+                <td className="px-4 py-2">{s.hasSubmitted ? `${s.accuracyByRound.SF.correct}/2` : '—'}</td>
+                <td className="px-4 py-2">{s.hasSubmitted ? `${s.accuracyByRound.F.correct}/1` : '—'}</td>
                 <td className="px-4 py-2 text-right font-bold accent-text">{s.totalPoints}</td>
               </motion.tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      <p className="text-center text-xs text-gray-500">
+        Scoring: R16 correct = 6 pts · QF = 10 · SF = 16 · Champion = 30.
+        Ties are broken by most correct in the later rounds (Champion → SF → QF → R16).
+      </p>
 
       <div className="card p-4">
         <h2 className="text-sm font-semibold text-gray-400 mb-2">Points by player</h2>

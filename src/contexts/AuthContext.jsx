@@ -19,23 +19,30 @@ export const useAuth = () => {
   return context;
 };
 
+const isAdminEmail = (email) =>
+  !!email && !!adminEmail && email.toLowerCase() === adminEmail.toLowerCase();
+
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [player, setPlayer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authToken, setAuthToken] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [authError, setAuthError] = useState('');
 
   useEffect(() => {
     if (isSignInWithEmailLink(auth, window.location.href)) {
       let email = window.localStorage.getItem('emailForSignIn');
       if (!email) {
-        email = window.prompt('Please provide your email for confirmation');
+        email = window.prompt('Please confirm the email you used to sign in');
       }
 
       signInWithEmailLink(auth, email, window.location.href)
         .then(() => window.localStorage.removeItem('emailForSignIn'))
-        .catch((error) => console.error('Error signing in with email link:', error));
+        .catch((error) => {
+          console.error('Error signing in with email link:', error);
+          setAuthError('That sign-in link is invalid or expired. Please enter your email to get a new one.');
+        });
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -45,12 +52,13 @@ export const AuthProvider = ({ children }) => {
         try {
           const token = await user.getIdToken();
           setAuthToken(token);
-          setIsAdmin(user.email === adminEmail);
+          setIsAdmin(isAdminEmail(user.email));
           const playerData = await syncPlayer(token);
           setPlayer(playerData);
         } catch (error) {
           console.error('Error syncing player:', error);
           setPlayer(null);
+          setAuthError('We couldn’t find your account on the roster. Check with Ranjit.');
         }
       } else {
         setAuthToken(null);
@@ -65,6 +73,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const sendSignInLink = async (email) => {
+    setAuthError('');
     const { found } = await checkRoster(email);
     if (!found) {
       throw new Error('Email not recognized — check with Ranjit.');
@@ -79,7 +88,7 @@ export const AuthProvider = ({ children }) => {
 
   const signOut = () => firebaseSignOut(auth);
 
-  const value = { currentUser, player, authToken, isAdmin, sendSignInLink, signOut, loading };
+  const value = { currentUser, player, authToken, isAdmin, authError, sendSignInLink, signOut, loading };
 
   return (
     <AuthContext.Provider value={value}>

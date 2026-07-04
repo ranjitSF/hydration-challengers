@@ -2,13 +2,16 @@ import express from 'express';
 import { db } from '../database/firestore.js';
 import { verifyToken } from '../config/firebase.js';
 import { sanitizeString } from '../utils/validation.js';
+import { renameInPicks } from '../lib/standings.js';
 import { pollOnce } from '../jobs/scorePoller.js';
 
 const router = express.Router();
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || '').toLowerCase();
 
+// Case-insensitive admin gate — Firebase returns the email in whatever case the
+// user typed at sign-in, so we normalize both sides (matches players.js/picks.js).
 function requireAdmin(req, res, next) {
-  if (!ADMIN_EMAIL || req.user?.email !== ADMIN_EMAIL) {
+  if (!ADMIN_EMAIL || req.user?.email?.toLowerCase() !== ADMIN_EMAIL) {
     return res.status(403).json({ error: 'Admin only' });
   }
   next();
@@ -16,33 +19,87 @@ function requireAdmin(req, res, next) {
 
 router.use(verifyToken, requireAdmin);
 
-// Fill in TBD teams (or correct a team name) for a match
+// The set of real teams that can ever be a valid result winner (the full R16 field).
+async function getFieldTeams() {
+  const snap = await db().collection('matches').where('round', '==', 'R16').get();
+  const teams = new Set();
+  for (const doc of snap.docs) {
+    const m = doc.data();
+    if (m.team_a && m.team_a !== 'TBD') teams.add(m.team_a);
+    if (m.team_b && m.team_b !== 'TBD') teams.add(m.team_b);
+  }
+  return teams;
+}
+
+// When a match's team name changes (e.g. resolving the Colombia/Ghana placeholder),
+// rewrite that team string everywhere it appears in every player's bracket so their
+// picks — and any downstream rounds they advanced it to — stay correct and scorable.
+async function cascadeRename(oldName, newName) {
+  if (!oldName || !newName || oldName === newName) return;
+  const picksSnap = await db().collection('picks').get();
+  const batch = db().batch();
+  let touched = 0;
+  for (const doc of picksSnap.docs) {
+    const { picksBySlot, changed } = renameInPicks(doc.data().picksBySlot || {}, oldName, newName);
+    if (changed) {
+      batch.update(doc.ref, { picksBySlot });
+      touched += 1;
+    }
+  }
+  if (touched > 0) await batch.commit();
+  return touched;
+}
+
+// Fill in TBD teams (or correct a team name) for a match, cascading the rename into picks.
 router.put('/matches/:slot', async (req, res) => {
   try {
-    const { team_a, team_b } = req.body;
-    const update = {};
-    if (team_a) update.team_a = sanitizeString(team_a);
-    if (team_b) update.team_b = sanitizeString(team_b);
-
     const ref = db().collection('matches').doc(req.params.slot);
     const doc = await ref.get();
     if (!doc.exists) return res.status(404).json({ error: 'Match not found' });
+    const prev = doc.data();
 
+    const newA = req.body.team_a ? sanitizeString(req.body.team_a) : null;
+    const newB = req.body.team_b ? sanitizeString(req.body.team_b) : null;
+
+    const update = {};
+    if (newA) update.team_a = newA;
+    if (newB) update.team_b = newB;
     await ref.update(update);
+
+    let migrated = 0;
+    if (newA) migrated += (await cascadeRename(prev.team_a, newA)) || 0;
+    if (newB) migrated += (await cascadeRename(prev.team_b, newB)) || 0;
+
     const updated = await ref.get();
-    res.json(updated.data());
+    res.json({ ...updated.data(), migratedPicks: migrated });
   } catch (error) {
     console.error('Error updating match:', error);
     res.status(500).json({ error: 'Failed to update match' });
   }
 });
 
-// Set or correct a result. Manual entries always take precedence, regardless of
-// what wrote the row before (see server/jobs/scorePoller.js for the auto path).
+// Set or correct a result. Manual entries always take precedence over auto-pulled
+// ones. The winner MUST be one of that match's two teams (R16) or a real team in
+// the field (later rounds) — this makes a typo that silently zeroes everyone's
+// score impossible.
 router.put('/results/:slot', async (req, res) => {
   try {
     const winner = sanitizeString(req.body.winner);
     if (!winner) return res.status(400).json({ error: 'winner is required' });
+
+    const matchDoc = await db().collection('matches').doc(req.params.slot).get();
+    if (!matchDoc.exists) return res.status(404).json({ error: 'Match not found' });
+    const match = matchDoc.data();
+
+    let allowed;
+    if (match.round === 'R16') {
+      allowed = new Set([match.team_a, match.team_b].filter((t) => t && t !== 'TBD'));
+    } else {
+      allowed = await getFieldTeams();
+    }
+    if (!allowed.has(winner)) {
+      return res.status(400).json({ error: `"${winner}" isn't a valid team for ${req.params.slot}` });
+    }
 
     const result = { winner, source: 'manual', updatedAt: new Date().toISOString() };
     await db().collection('results').doc(req.params.slot).set(result);
@@ -85,7 +142,8 @@ router.post('/poll-scores', async (req, res) => {
   }
 });
 
-// Matches whose kickoff has passed (+3h buffer) with no result yet
+// Matches whose kickoff has passed (+3h buffer) with no result yet, plus any
+// matches still carrying an unresolved placeholder team.
 router.get('/status', async (req, res) => {
   try {
     const [matchesSnap, resultsSnap] = await Promise.all([
@@ -94,12 +152,16 @@ router.get('/status', async (req, res) => {
     ]);
     const resultSlots = new Set(resultsSnap.docs.map((d) => d.id));
     const now = Date.now();
+    const matches = matchesSnap.docs.map((d) => d.data());
 
-    const needsResult = matchesSnap.docs
-      .map((d) => d.data())
-      .filter((m) => !resultSlots.has(m.slot) && m.kickoff_at && now > new Date(m.kickoff_at).getTime() + 3 * 60 * 60 * 1000);
+    const needsResult = matches.filter(
+      (m) => !resultSlots.has(m.slot) && m.kickoff_at && now > new Date(m.kickoff_at).getTime() + 3 * 60 * 60 * 1000
+    );
+    const unresolvedTeams = matches.filter(
+      (m) => /winner/i.test(m.team_a || '') || /winner/i.test(m.team_b || '') || m.team_a === 'TBD' || m.team_b === 'TBD'
+    );
 
-    res.json({ needsResult });
+    res.json({ needsResult, unresolvedTeams });
   } catch (error) {
     console.error('Error fetching admin status:', error);
     res.status(500).json({ error: 'Failed to fetch status' });

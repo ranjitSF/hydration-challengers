@@ -49,13 +49,14 @@ router.post('/', verifyToken, async (req, res) => {
 
       let validOptions;
       if (match.round === 'R16') {
-        validOptions = [match.team_a, match.team_b];
+        // Never let the literal 'TBD' / empty side be picked — it can't ever match a real result.
+        validOptions = [match.team_a, match.team_b].filter((t) => t && t !== 'TBD');
       } else {
         const [feederA, feederB] = BRACKET_PAIRING[slot];
-        validOptions = [resolvedTeamBySlot[feederA], resolvedTeamBySlot[feederB]];
+        validOptions = [resolvedTeamBySlot[feederA], resolvedTeamBySlot[feederB]].filter(Boolean);
       }
 
-      if (!validOptions.includes(submitted)) {
+      if (submitted === 'TBD' || !validOptions.includes(submitted)) {
         return res.status(400).json({ error: `Invalid pick for ${slot}: must be one of ${validOptions.join(' or ')}` });
       }
 

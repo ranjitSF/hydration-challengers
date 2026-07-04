@@ -10,12 +10,15 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
 
-  const { sendSignInLink, currentUser } = useAuth();
+  const { sendSignInLink, currentUser, authError } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (currentUser) navigate('/picks');
   }, [currentUser, navigate]);
+
+  // Surface an expired/invalid magic-link error raised during sign-in.
+  const shownError = error || authError;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -68,8 +71,8 @@ const Login = () => {
                 className="w-full px-4 py-3 bg-wc-navyDarker border border-wc-border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-wc-accent"
               />
             </div>
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">{error}</div>
+            {shownError && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">{shownError}</div>
             )}
             <button type="submit" disabled={loading} className="w-full btn-primary disabled:opacity-50 flex items-center justify-center gap-2">
               <Mail className="w-5 h-5" />

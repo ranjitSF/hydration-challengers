@@ -1,21 +1,28 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { getFlag } from '../lib/teams';
 
-const TeamRow = ({ team, selected, disabled, onSelect }) => (
-  <button
-    type="button"
-    disabled={disabled || !team}
-    onClick={() => onSelect(team)}
-    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition text-left
-      ${!team ? 'border-wc-border/50 text-gray-600 cursor-not-allowed' : 'border-wc-border'}
-      ${selected ? 'bg-wc-accent/20 border-wc-accent text-white' : team ? 'hover:border-wc-accent/60 text-gray-200' : ''}
-      ${disabled && !selected ? 'opacity-50' : ''}
-    `}
-  >
-    <span className="font-medium">{team || 'TBD'}</span>
-    {selected && <span className="text-wc-accent text-sm">✓ Picked</span>}
-  </button>
-);
+const isPickable = (team) => !!team && team !== 'TBD';
+
+const TeamRow = ({ team, selected, disabled, onSelect }) => {
+  const pickable = isPickable(team);
+  return (
+    <button
+      type="button"
+      disabled={disabled || !pickable}
+      onClick={() => onSelect(team)}
+      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition text-left
+        ${!pickable ? 'border-wc-border/50 text-gray-600 cursor-not-allowed' : 'border-wc-border'}
+        ${selected ? 'bg-wc-accent/20 border-wc-accent text-white' : pickable ? 'hover:border-wc-accent/60 text-gray-200' : ''}
+        ${disabled && !selected ? 'opacity-60' : ''}
+      `}
+    >
+      <span className="text-xl leading-none">{getFlag(team)}</span>
+      <span className="font-medium flex-1">{team || 'TBD'}</span>
+      {selected && <span className="text-wc-accent text-sm whitespace-nowrap">✓ Picked</span>}
+    </button>
+  );
+};
 
 const MatchCard = ({ label, teamA, teamB, picked, onPick, disabled, kickoff, venue }) => (
   <motion.div
