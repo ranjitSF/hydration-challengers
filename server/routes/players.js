@@ -1,12 +1,15 @@
 import express from 'express';
 import { db } from '../database/firestore.js';
-import { verifyToken } from '../config/firebase.js';
+import { verifyToken, admin } from '../config/firebase.js';
 import { getAppConfig, isLocked } from '../lib/config.js';
 import { ALL_SLOTS, ROUND_BY_SLOT } from '../lib/bracket.js';
 import { POINTS_BY_ROUND } from '../lib/scoring.js';
+import { sendSignInEmail, emailConfigured } from '../utils/email.js';
 import { isValidEmail, sanitizeString } from '../utils/validation.js';
 
 const router = express.Router();
+
+const APP_URL = process.env.APP_URL || 'https://hydration-challengers.vercel.app';
 
 // Public: is this email on the roster? (checked before triggering Firebase's email-link send)
 router.post('/login-check', async (req, res) => {
@@ -21,6 +24,38 @@ router.post('/login-check', async (req, res) => {
   } catch (error) {
     console.error('Error checking roster:', error);
     res.status(500).json({ error: 'Failed to check roster' });
+  }
+});
+
+// Public: generate a passwordless sign-in link server-side (Admin SDK — no email
+// quota) and deliver it through our own SMTP. This bypasses Firebase's capped,
+// spam-flagged built-in email sender entirely.
+router.post('/request-link', async (req, res) => {
+  try {
+    const email = sanitizeString(req.body.email).toLowerCase();
+    if (!isValidEmail(email)) return res.status(400).json({ error: 'Valid email is required' });
+
+    const doc = await db().collection('players').doc(email).get();
+    if (!doc.exists) return res.json({ found: false }); // not on roster
+
+    if (!emailConfigured()) return res.status(500).json({ error: 'Email sending is not configured' });
+
+    const rawLink = await admin.auth().generateSignInWithEmailLink(email, {
+      url: `${APP_URL}/login`,
+      handleCodeInApp: true,
+    });
+    // Rebuild in the direct format our client (isSignInWithEmailLink) completes with.
+    const u = new URL(rawLink);
+    const link = new URL(u.searchParams.get('continueUrl'));
+    link.searchParams.set('apiKey', u.searchParams.get('apiKey'));
+    link.searchParams.set('oobCode', u.searchParams.get('oobCode'));
+    link.searchParams.set('mode', 'signIn');
+
+    await sendSignInEmail(email, link.toString());
+    res.json({ found: true, sent: true });
+  } catch (error) {
+    console.error('Error sending sign-in link:', error);
+    res.status(500).json({ error: 'Failed to send sign-in email' });
   }
 });
 

@@ -1,13 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import {
-  sendSignInLinkToEmail,
-  isSignInWithEmailLink,
-  signInWithEmailLink,
-  signOut as firebaseSignOut,
-  onAuthStateChanged,
-} from 'firebase/auth';
-import { auth } from '../config/firebase';
-import { checkRoster, syncPlayer } from '../services';
+import { signInWithPopup, signOut as firebaseSignOut, onAuthStateChanged } from 'firebase/auth';
+import { auth, googleProvider } from '../config/firebase';
+import { syncPlayer } from '../services';
 import { adminEmail } from '../config/app';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -31,64 +25,48 @@ export const AuthProvider = ({ children }) => {
   const [authError, setAuthError] = useState('');
 
   useEffect(() => {
-    if (isSignInWithEmailLink(auth, window.location.href)) {
-      let email = window.localStorage.getItem('emailForSignIn');
-      if (!email) {
-        email = window.prompt('Please confirm the email you used to sign in');
-      }
-
-      signInWithEmailLink(auth, email, window.location.href)
-        .then(() => window.localStorage.removeItem('emailForSignIn'))
-        .catch((error) => {
-          console.error('Error signing in with email link:', error);
-          setAuthError('That sign-in link is invalid or expired. Please enter your email to get a new one.');
-        });
-    }
-
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
-
       if (user) {
         try {
           const token = await user.getIdToken();
+          const playerData = await syncPlayer(token); // 403 if email isn't on the roster
+          setCurrentUser(user);
           setAuthToken(token);
           setIsAdmin(isAdminEmail(user.email));
-          const playerData = await syncPlayer(token);
           setPlayer(playerData);
         } catch (error) {
-          console.error('Error syncing player:', error);
+          // Signed in with Google but not on the roster → reject and sign back out.
+          if (/roster|not on/i.test(error.message || '')) {
+            setAuthError(`${user.email} isn't on the pool roster — check with Ranjit.`);
+          } else {
+            setAuthError('Something went wrong signing you in. Please try again.');
+          }
+          await firebaseSignOut(auth);
+          setCurrentUser(null);
+          setAuthToken(null);
           setPlayer(null);
-          setAuthError('We couldn’t find your account on the roster. Check with Ranjit.');
+          setIsAdmin(false);
         }
       } else {
+        setCurrentUser(null);
         setAuthToken(null);
         setPlayer(null);
         setIsAdmin(false);
       }
-
       setLoading(false);
     });
 
     return unsubscribe;
   }, []);
 
-  const sendSignInLink = async (email) => {
+  const signInWithGoogle = async () => {
     setAuthError('');
-    const { found } = await checkRoster(email);
-    if (!found) {
-      throw new Error('Email not recognized — check with Ranjit.');
-    }
-
-    const actionCodeSettings = {
-      url: window.location.origin + '/login',
-      handleCodeInApp: true,
-    };
-    await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+    await signInWithPopup(auth, googleProvider);
   };
 
   const signOut = () => firebaseSignOut(auth);
 
-  const value = { currentUser, player, authToken, isAdmin, authError, sendSignInLink, signOut, loading };
+  const value = { currentUser, player, authToken, isAdmin, authError, signInWithGoogle, signOut, loading };
 
   return (
     <AuthContext.Provider value={value}>

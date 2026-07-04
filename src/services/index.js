@@ -16,6 +16,7 @@ async function request(path, { method = 'GET', body, token } = {}) {
 }
 
 export const checkRoster = (email) => request('/players/login-check', { method: 'POST', body: { email } });
+export const requestSignInLink = (email) => request('/players/request-link', { method: 'POST', body: { email } });
 export const syncPlayer = (token) => request('/players/sync', { method: 'POST', token });
 export const getPlayers = () => request('/players');
 export const getMatches = () => request('/matches');
