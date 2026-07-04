@@ -110,12 +110,13 @@ async function run() {
   check('submit after lock rejected (423)', (await submit(full, playerToken)).status === 423);
   await cfg.set(orig);
 
-  // cleanup
+  // cleanup — restore pristine pre-launch state
   await admin.firestore().collection('picks').doc(PLAYER).delete().catch(() => {});
   const rs = await admin.firestore().collection('results').get();
   const b = admin.firestore().batch(); rs.docs.forEach((d) => b.delete(d.ref)); if (rs.size) await b.commit();
   await cfg.update({ 'realR32.M87': admin.firestore.FieldValue.delete() });
-  console.log('  (cleaned up test picks/results + M87)');
+  await admin.firestore().collection('matches').doc('M96').update({ team_b: 'Colombia/Ghana Winner' });
+  console.log('  (cleaned up test picks/results + M87 + M96 placeholder)');
 
   console.log(`\n${fail === 0 ? '✅ ALL PASS' : '❌ FAILURES'}: ${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);

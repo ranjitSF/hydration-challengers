@@ -3,7 +3,7 @@ import { db } from '../database/firestore.js';
 import { verifyToken } from '../config/firebase.js';
 import { sanitizeString } from '../utils/validation.js';
 import { renameInPicks } from '../lib/standings.js';
-import { getAppConfig } from '../lib/config.js';
+import { getAppConfig, resolveM87 } from '../lib/config.js';
 import { pollOnce } from '../jobs/scorePoller.js';
 
 const router = express.Router();
@@ -138,12 +138,9 @@ router.put('/r32/:game', async (req, res) => {
   try {
     const winner = sanitizeString(req.body.winner);
     if (!winner) return res.status(400).json({ error: 'winner is required' });
+    if (req.params.game !== 'M87') return res.status(400).json({ error: 'Only M87 is settable' });
 
-    const ref = db().collection('config').doc('app');
-    const doc = await ref.get();
-    const realR32 = { ...(doc.exists ? doc.data().realR32 || {} : {}) };
-    realR32[req.params.game] = winner;
-    await ref.set({ realR32 }, { merge: true });
+    const realR32 = await resolveM87(winner);
     res.json({ realR32 });
   } catch (error) {
     console.error('Error setting R32 result:', error);
