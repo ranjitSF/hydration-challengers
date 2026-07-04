@@ -59,10 +59,23 @@ const ProjectionModal = ({ playerId, displayName, currentRank, initialTab = 'bra
   const [error, setError] = useState('');
   const [tab, setTab] = useState(initialTab);
 
+  // Fetch on open, then refresh every 40s while open so ceiling/path/best-rank stay
+  // live if a game finishes mid-view. Only the first load shows a spinner/error;
+  // later polls update in place.
   useEffect(() => {
-    setData(null); setError(''); setTab(initialTab);
-    if (!playerId) return;
-    getPlayerProjection(playerId).then(setData).catch((e) => setError(e.message));
+    setTab(initialTab);
+    if (!playerId) { setData(null); setError(''); return; }
+    let cancelled = false;
+    let timer;
+    const load = (initial) => {
+      if (initial) { setData(null); setError(''); }
+      getPlayerProjection(playerId)
+        .then((d) => { if (!cancelled) setData(d); })
+        .catch((e) => { if (!cancelled && initial) setError(e.message); })
+        .finally(() => { if (!cancelled) timer = setTimeout(() => load(false), 40000); });
+    };
+    load(true);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [playerId, initialTab]);
 
   const TabBtn = ({ id, label }) => (
