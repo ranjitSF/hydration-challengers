@@ -14,6 +14,14 @@ export const R16_SLOTS = ['M89', 'M90', 'M91', 'M92', 'M93', 'M94', 'M95', 'M96'
 export const QF_SLOTS = ['QF1', 'QF2', 'QF3', 'QF4'];
 export const SF_SLOTS = ['SF1', 'SF2'];
 export const FINAL_SLOT = 'F1';
+export const ALL_SLOTS = [...R16_SLOTS, ...QF_SLOTS, ...SF_SLOTS, FINAL_SLOT];
+
+export const ROUND_BY_SLOT = {
+  ...Object.fromEntries(R16_SLOTS.map((s) => [s, 'R16'])),
+  ...Object.fromEntries(QF_SLOTS.map((s) => [s, 'QF'])),
+  ...Object.fromEntries(SF_SLOTS.map((s) => [s, 'SF'])),
+  [FINAL_SLOT]: 'F',
+};
 
 // Given a map of slot -> picked team (for every match up to and including the
 // previous round), derive the two teams that should appear in `slot`.

@@ -38,22 +38,22 @@ const Admin = () => {
 
   const saveTbdTeams = async (match) => {
     await adminUpdateMatch(
-      match.id,
-      { team_a: draft(`a-${match.id}`, match.team_a), team_b: draft(`b-${match.id}`, match.team_b) },
+      match.slot,
+      { team_a: draft(`a-${match.slot}`, match.team_a), team_b: draft(`b-${match.slot}`, match.team_b) },
       authToken
     );
     load();
   };
 
   const saveResult = async (match) => {
-    const winner = draft(`w-${match.id}`, match.winner || '');
+    const winner = draft(`w-${match.slot}`, match.winner || '');
     if (!winner) return;
-    await adminSetResult(match.id, winner, authToken);
+    await adminSetResult(match.slot, winner, authToken);
     load();
   };
 
   const saveStartingPoints = async (player) => {
-    await adminSetStartingPoints(player.id, Number(draft(`sp-${player.id}`, player.starting_points)), authToken);
+    await adminSetStartingPoints(player.email, Number(draft(`sp-${player.email}`, player.starting_points)), authToken);
     load();
   };
 
@@ -71,7 +71,7 @@ const Admin = () => {
         <h2 className="font-semibold">Matches &amp; results</h2>
         <div className="space-y-2">
           {matches.map((m) => (
-            <div key={m.id} className="border border-wc-border rounded-lg p-3 space-y-2">
+            <div key={m.slot} className="border border-wc-border rounded-lg p-3 space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="font-semibold accent-text">{m.slot} · {m.round}</span>
                 {m.winner && (
@@ -86,14 +86,14 @@ const Admin = () => {
                   <input
                     className="flex-1 bg-wc-navyDarker border border-wc-border rounded px-2 py-1 text-sm"
                     placeholder="Team A"
-                    value={draft(`a-${m.id}`, m.team_a === 'TBD' ? '' : m.team_a)}
-                    onChange={(e) => setDraft(`a-${m.id}`, e.target.value)}
+                    value={draft(`a-${m.slot}`, m.team_a === 'TBD' ? '' : m.team_a)}
+                    onChange={(e) => setDraft(`a-${m.slot}`, e.target.value)}
                   />
                   <input
                     className="flex-1 bg-wc-navyDarker border border-wc-border rounded px-2 py-1 text-sm"
                     placeholder="Team B"
-                    value={draft(`b-${m.id}`, m.team_b === 'TBD' ? '' : m.team_b)}
-                    onChange={(e) => setDraft(`b-${m.id}`, e.target.value)}
+                    value={draft(`b-${m.slot}`, m.team_b === 'TBD' ? '' : m.team_b)}
+                    onChange={(e) => setDraft(`b-${m.slot}`, e.target.value)}
                   />
                   <button onClick={() => saveTbdTeams(m)} className="btn-primary text-sm px-3">Save</button>
                 </div>
@@ -103,8 +103,8 @@ const Admin = () => {
                 <input
                   className="flex-1 bg-wc-navyDarker border border-wc-border rounded px-2 py-1 text-sm"
                   placeholder="Winner"
-                  value={draft(`w-${m.id}`, m.winner || '')}
-                  onChange={(e) => setDraft(`w-${m.id}`, e.target.value)}
+                  value={draft(`w-${m.slot}`, m.winner || '')}
+                  onChange={(e) => setDraft(`w-${m.slot}`, e.target.value)}
                 />
                 <button onClick={() => saveResult(m)} className="btn-primary text-sm px-3">Set result</button>
               </div>
@@ -117,13 +117,13 @@ const Admin = () => {
         <h2 className="font-semibold">Starting points (Round of 32 carryover)</h2>
         <div className="space-y-2">
           {players.map((p) => (
-            <div key={p.id} className="flex items-center gap-2">
+            <div key={p.email} className="flex items-center gap-2">
               <span className="flex-1 text-sm">{p.display_name}</span>
               <input
                 type="number"
                 className="w-24 bg-wc-navyDarker border border-wc-border rounded px-2 py-1 text-sm"
-                value={draft(`sp-${p.id}`, p.starting_points)}
-                onChange={(e) => setDraft(`sp-${p.id}`, e.target.value)}
+                value={draft(`sp-${p.email}`, p.starting_points)}
+                onChange={(e) => setDraft(`sp-${p.email}`, e.target.value)}
               />
               <button onClick={() => saveStartingPoints(p)} className="btn-primary text-sm px-3">Save</button>
             </div>

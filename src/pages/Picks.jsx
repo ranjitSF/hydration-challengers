@@ -25,14 +25,7 @@ const Picks = () => {
         ]);
         setMatches(matchList);
         setLockAt(config.lockAt ? new Date(config.lockAt) : null);
-
-        const bySlot = {};
-        const matchById = Object.fromEntries(matchList.map((m) => [m.id, m]));
-        for (const pick of myPicks) {
-          const match = matchById[pick.match_id];
-          if (match) bySlot[match.slot] = pick.picked_team;
-        }
-        setPicksBySlot(bySlot);
+        setPicksBySlot(myPicks.picksBySlot || {});
         setStatus((s) => ({ ...s, loading: false }));
       } catch (err) {
         setStatus((s) => ({ ...s, loading: false, error: err.message }));

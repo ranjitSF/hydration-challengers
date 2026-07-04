@@ -1,36 +1,33 @@
 import express from 'express';
-import pool from '../database/db.js';
+import { db } from '../database/firestore.js';
 import { scorePlayerPicks } from '../lib/scoring.js';
 
 const router = express.Router();
 
 router.get('/', async (req, res) => {
   try {
-    const [playersRes, matchesRes, resultsRes, picksRes] = await Promise.all([
-      pool.query('SELECT id, display_name, starting_points FROM players ORDER BY display_name'),
-      pool.query('SELECT id, round, slot FROM matches'),
-      pool.query('SELECT match_id, winner FROM results'),
-      pool.query('SELECT player_id, match_id, picked_team FROM picks'),
+    const [playersSnap, resultsSnap, picksSnap] = await Promise.all([
+      db().collection('players').get(),
+      db().collection('results').get(),
+      db().collection('picks').get(),
     ]);
 
-    const matchesById = Object.fromEntries(matchesRes.rows.map((m) => [m.id, m]));
-    const resultsByMatchId = Object.fromEntries(resultsRes.rows.map((r) => [r.match_id, r.winner]));
-    const picksByPlayer = {};
-    for (const pick of picksRes.rows) {
-      (picksByPlayer[pick.player_id] ||= []).push(pick);
-    }
+    const resultsBySlot = Object.fromEntries(resultsSnap.docs.map((d) => [d.id, d.data().winner]));
+    const picksByEmail = Object.fromEntries(picksSnap.docs.map((d) => [d.id, d.data().picksBySlot || {}]));
 
-    const standings = playersRes.rows.map((player) => {
-      const picks = picksByPlayer[player.id] || [];
-      const { total, accuracyByRound } = scorePlayerPicks(picks, matchesById, resultsByMatchId);
+    const standings = playersSnap.docs.map((doc) => {
+      const player = doc.data();
+      const picksBySlot = picksByEmail[doc.id] || {};
+      const { total, accuracyByRound } = scorePlayerPicks(picksBySlot, resultsBySlot);
+      const startingPoints = player.starting_points || 0;
       return {
-        playerId: player.id,
+        playerId: doc.id,
         displayName: player.display_name,
-        startingPoints: player.starting_points,
+        startingPoints,
         pickPoints: total,
-        totalPoints: player.starting_points + total,
+        totalPoints: startingPoints + total,
         accuracyByRound,
-        hasSubmitted: picks.length > 0,
+        hasSubmitted: Object.keys(picksBySlot).length > 0,
       };
     });
 

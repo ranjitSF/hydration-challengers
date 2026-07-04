@@ -1,3 +1,5 @@
+import { ALL_SLOTS, ROUND_BY_SLOT } from './bracket.js';
+
 // Points awarded per correct pick, by round.
 export const POINTS_BY_ROUND = {
   R16: 6,
@@ -6,22 +8,27 @@ export const POINTS_BY_ROUND = {
   F: 30,
 };
 
-// matches: [{ id, round, slot }]
-// results: Map or object keyed by match_id -> winner team name
-// picks: [{ match_id, picked_team }] for a single player
-export function scorePlayerPicks(picks, matchesById, resultsByMatchId) {
+// picksBySlot: { [slot]: teamName } for a single player
+// resultsBySlot: { [slot]: winnerTeamName }
+export function scorePlayerPicks(picksBySlot, resultsBySlot) {
   let total = 0;
-  const accuracyByRound = { R16: { correct: 0, total: 0 }, QF: { correct: 0, total: 0 }, SF: { correct: 0, total: 0 }, F: { correct: 0, total: 0 } };
+  const accuracyByRound = {
+    R16: { correct: 0, total: 0 },
+    QF: { correct: 0, total: 0 },
+    SF: { correct: 0, total: 0 },
+    F: { correct: 0, total: 0 },
+  };
 
-  for (const pick of picks) {
-    const match = matchesById[pick.match_id];
-    if (!match) continue;
-    accuracyByRound[match.round].total += 1;
+  for (const slot of ALL_SLOTS) {
+    const round = ROUND_BY_SLOT[slot];
+    const pick = picksBySlot[slot];
+    if (!pick) continue;
+    accuracyByRound[round].total += 1;
 
-    const winner = resultsByMatchId[pick.match_id];
-    if (winner && winner === pick.picked_team) {
-      total += POINTS_BY_ROUND[match.round];
-      accuracyByRound[match.round].correct += 1;
+    const winner = resultsBySlot[slot];
+    if (winner && winner === pick) {
+      total += POINTS_BY_ROUND[round];
+      accuracyByRound[round].correct += 1;
     }
   }
 

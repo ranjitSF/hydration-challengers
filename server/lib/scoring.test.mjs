@@ -9,21 +9,15 @@ test('max possible points matches the round point table (8/4/2/1 picks)', () => 
 });
 
 test('scores only correct picks at the right round value', () => {
-  const matchesById = {
-    1: { id: 1, round: 'R16', slot: 'M89' },
-    2: { id: 2, round: 'QF', slot: 'QF1' },
-    3: { id: 3, round: 'SF', slot: 'SF1' },
-    4: { id: 4, round: 'F', slot: 'F1' },
+  const picksBySlot = {
+    M89: 'France', // R16, correct, +6
+    QF2: 'Paraguay', // QF, wrong
+    SF1: 'Brazil', // SF, correct, +16
+    F1: 'Spain', // F, no result yet
   };
-  const resultsByMatchId = { 1: 'France', 2: 'France', 3: 'Brazil' }; // match 4 unresolved
-  const picks = [
-    { match_id: 1, picked_team: 'France' }, // correct, +6
-    { match_id: 2, picked_team: 'Paraguay' }, // wrong
-    { match_id: 3, picked_team: 'Brazil' }, // correct, +16
-    { match_id: 4, picked_team: 'Spain' }, // no result yet
-  ];
+  const resultsBySlot = { M89: 'France', QF2: 'France', SF1: 'Brazil' };
 
-  const { total, accuracyByRound } = scorePlayerPicks(picks, matchesById, resultsByMatchId);
+  const { total, accuracyByRound } = scorePlayerPicks(picksBySlot, resultsBySlot);
   assert.equal(total, POINTS_BY_ROUND.R16 + POINTS_BY_ROUND.SF);
   assert.deepEqual(accuracyByRound.R16, { correct: 1, total: 1 });
   assert.deepEqual(accuracyByRound.QF, { correct: 0, total: 1 });
@@ -32,19 +26,10 @@ test('scores only correct picks at the right round value', () => {
 });
 
 test('a full perfect bracket scores MAX_POSSIBLE_POINTS', () => {
-  const matchesById = {};
-  const resultsByMatchId = {};
-  const picks = [];
-  let id = 1;
-  const rounds = [['R16', 8], ['QF', 4], ['SF', 2], ['F', 1]];
-  for (const [round, count] of rounds) {
-    for (let i = 0; i < count; i++) {
-      matchesById[id] = { id, round, slot: `${round}${i}` };
-      resultsByMatchId[id] = 'Winner';
-      picks.push({ match_id: id, picked_team: 'Winner' });
-      id++;
-    }
-  }
-  const { total } = scorePlayerPicks(picks, matchesById, resultsByMatchId);
+  const slots = ['M89', 'M90', 'M91', 'M92', 'M93', 'M94', 'M95', 'M96', 'QF1', 'QF2', 'QF3', 'QF4', 'SF1', 'SF2', 'F1'];
+  const picksBySlot = Object.fromEntries(slots.map((s) => [s, 'Winner']));
+  const resultsBySlot = Object.fromEntries(slots.map((s) => [s, 'Winner']));
+
+  const { total } = scorePlayerPicks(picksBySlot, resultsBySlot);
   assert.equal(total, MAX_POSSIBLE_POINTS);
 });

@@ -1,16 +1,11 @@
-import pool from '../database/db.js';
+import { db } from '../database/firestore.js';
 
-export async function getConfigValue(key) {
-  const result = await pool.query('SELECT value FROM config WHERE key = $1', [key]);
-  return result.rows[0]?.value ?? null;
-}
-
-export async function getLockAt() {
-  const value = await getConfigValue('lock_at');
-  return value ? new Date(value) : null;
+export async function getAppConfig() {
+  const doc = await db().collection('config').doc('app').get();
+  return doc.exists ? doc.data() : {};
 }
 
 export async function isLocked() {
-  const lockAt = await getLockAt();
-  return lockAt ? new Date() >= lockAt : false;
+  const { lockAt } = await getAppConfig();
+  return lockAt ? new Date() >= new Date(lockAt) : false;
 }

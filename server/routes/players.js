@@ -1,5 +1,5 @@
 import express from 'express';
-import pool from '../database/db.js';
+import { db } from '../database/firestore.js';
 import { verifyToken } from '../config/firebase.js';
 import { isValidEmail, sanitizeString } from '../utils/validation.js';
 
@@ -13,16 +13,10 @@ router.post('/login-check', async (req, res) => {
       return res.status(400).json({ error: 'Valid email is required' });
     }
 
-    const result = await pool.query(
-      'SELECT display_name FROM players WHERE lower(email) = $1',
-      [email]
-    );
+    const doc = await db().collection('players').doc(email).get();
+    if (!doc.exists) return res.json({ found: false });
 
-    if (result.rows.length === 0) {
-      return res.json({ found: false });
-    }
-
-    res.json({ found: true, displayName: result.rows[0].display_name });
+    res.json({ found: true, displayName: doc.data().display_name });
   } catch (error) {
     console.error('Error checking roster:', error);
     res.status(500).json({ error: 'Failed to check roster' });
@@ -34,18 +28,16 @@ router.post('/login-check', async (req, res) => {
 router.post('/sync', verifyToken, async (req, res) => {
   try {
     const email = req.user.email?.toLowerCase();
+    const ref = db().collection('players').doc(email);
+    const doc = await ref.get();
 
-    const existing = await pool.query('SELECT * FROM players WHERE lower(email) = $1', [email]);
-    if (existing.rows.length === 0) {
+    if (!doc.exists) {
       return res.status(403).json({ error: 'Email not on roster' });
     }
 
-    const updated = await pool.query(
-      'UPDATE players SET firebase_uid = $1 WHERE id = $2 RETURNING id, email, display_name, starting_points',
-      [req.user.uid, existing.rows[0].id]
-    );
-
-    res.json(updated.rows[0]);
+    await ref.update({ firebase_uid: req.user.uid });
+    const updated = await ref.get();
+    res.json(updated.data());
   } catch (error) {
     console.error('Error syncing player:', error);
     res.status(500).json({ error: 'Failed to sync player' });
@@ -55,10 +47,8 @@ router.post('/sync', verifyToken, async (req, res) => {
 // Public: roster list for standings display
 router.get('/', async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT id, display_name, starting_points FROM players ORDER BY display_name'
-    );
-    res.json(result.rows);
+    const snapshot = await db().collection('players').orderBy('display_name').get();
+    res.json(snapshot.docs.map((d) => d.data()));
   } catch (error) {
     console.error('Error fetching players:', error);
     res.status(500).json({ error: 'Failed to fetch players' });
