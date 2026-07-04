@@ -55,7 +55,7 @@ const Standings = () => {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.1 * i }}
                 onClick={() => setViewing({ id: player.playerId, name: player.displayName, rank: standings.indexOf(player) + 1, tab: 'bracket' })}
-                className={`card text-center p-4 cursor-pointer hover:border-wc-accent/50 ${isFirst ? 'order-2 w-32' : 'w-28'}`}
+                className={`card text-center p-4 cursor-pointer hover:border-wc-accent/50 ${isFirst ? 'w-32' : 'w-28'}`}
               >
                 <div className="text-3xl mb-1">{MEDALS[top3.indexOf(player)]}</div>
                 <div className="font-semibold truncate">{player.displayName}</div>
