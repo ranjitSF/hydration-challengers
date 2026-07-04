@@ -100,7 +100,7 @@ const Standings = () => {
       </div>
 
       <p className="text-center text-xs text-gray-500">
-        Scoring: R16 correct = 6 pts · QF = 10 · SF = 16 · Champion = 30.
+        Scoring: Round of 32 (carried in) = 3 pts/correct · R16 = 6 · QF = 10 · SF = 16 · Champion = 30.
         Ties are broken by most correct in the later rounds (Champion → SF → QF → R16).
       </p>
 
