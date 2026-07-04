@@ -15,6 +15,19 @@ export const SF_SLOTS = ['SF1', 'SF2'];
 export const FINAL_SLOT = 'F1';
 export const ALL_SLOTS = [...R16_SLOTS, ...QF_SLOTS, ...SF_SLOTS, FINAL_SLOT];
 
+// See server/lib/bracket.js for the verification note.
+export const R32_FEEDERS = {
+  M89: ['M74', 'M77'],
+  M90: ['M73', 'M75'],
+  M91: ['M76', 'M78'],
+  M92: ['M79', 'M80'],
+  M93: ['M83', 'M84'],
+  M94: ['M81', 'M82'],
+  M95: ['M86', 'M88'],
+  M96: ['M85', 'M87'],
+};
+export const AUTO_R32_GAME = 'M73';
+
 export function deriveMatchup(slot, picksBySlot) {
   const feeders = BRACKET_PAIRING[slot];
   if (!feeders) return [null, null];

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { getMatches, getPlayers, adminUpdateMatch, adminSetResult, adminSetStartingPoints, adminGetStatus, adminPollScores } from '../services';
+import { getMatches, getPlayers, adminUpdateMatch, adminSetResult, adminSetStartingPoints, adminGetStatus, adminPollScores, adminSetR32 } from '../services';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { getFlag } from '../lib/teams';
 
@@ -12,6 +12,7 @@ const Admin = () => {
   const [players, setPlayers] = useState(null);
   const [needsResult, setNeedsResult] = useState([]);
   const [unresolved, setUnresolved] = useState([]);
+  const [r32M87, setR32M87] = useState(null);
   const [drafts, setDrafts] = useState({});
   const [error, setError] = useState('');
   const [actionMsg, setActionMsg] = useState('');
@@ -28,6 +29,7 @@ const Admin = () => {
       setPlayers(playerList);
       setNeedsResult(statusData.needsResult.map((m) => m.slot));
       setUnresolved(statusData.unresolvedTeams.map((m) => m.slot));
+      setR32M87(statusData.r32M87 || null);
     } catch (err) {
       setError(err.message);
     }
@@ -93,6 +95,8 @@ const Admin = () => {
       `${p.display_name} starting points saved`
     );
 
+  const setM87 = (winner) => run(() => adminSetR32('M87', winner, authToken), `R32 M87 set: ${winner} — M96 boards updated`);
+
   const pollScoresNow = async () => {
     setPollStatus('Polling API-Football...');
     try {
@@ -129,6 +133,18 @@ const Admin = () => {
           Needs a result: {needsResult.join(', ')}
         </div>
       )}
+
+      <section className="card p-4 space-y-2">
+        <h2 className="font-semibold">Round of 32 — Colombia vs Ghana (M87)</h2>
+        <p className="text-xs text-gray-400">
+          Sets the last R32 result. Everyone who backed the winner gets it as a pickable team in M96.
+          {r32M87 ? ` Currently: ${r32M87}.` : ' Not set yet (pending tonight).'}
+        </p>
+        <div className="flex gap-2">
+          <button onClick={() => setM87('Colombia')} className="btn-primary text-sm px-3">Colombia won</button>
+          <button onClick={() => setM87('Ghana')} className="btn-primary text-sm px-3">Ghana won</button>
+        </div>
+      </section>
 
       <section className="card p-4 space-y-3">
         <h2 className="font-semibold">Matches &amp; results</h2>

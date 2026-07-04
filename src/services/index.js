@@ -31,3 +31,5 @@ export const adminSetStartingPoints = (playerId, startingPoints, token) =>
   request(`/admin/players/${playerId}/starting-points`, { method: 'PUT', body: { startingPoints }, token });
 export const adminGetStatus = (token) => request('/admin/status', { token });
 export const adminPollScores = (token) => request('/admin/poll-scores', { method: 'POST', token });
+export const adminSetR32 = (game, winner, token) =>
+  request(`/admin/r32/${game}`, { method: 'PUT', body: { winner }, token });

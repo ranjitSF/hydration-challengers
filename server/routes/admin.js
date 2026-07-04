@@ -3,6 +3,7 @@ import { db } from '../database/firestore.js';
 import { verifyToken } from '../config/firebase.js';
 import { sanitizeString } from '../utils/validation.js';
 import { renameInPicks } from '../lib/standings.js';
+import { getAppConfig } from '../lib/config.js';
 import { pollOnce } from '../jobs/scorePoller.js';
 
 const router = express.Router();
@@ -130,6 +131,26 @@ router.put('/players/:email/starting-points', async (req, res) => {
   }
 });
 
+// Set a Round-of-32 result (used for M87 Colombia/Ghana, which decides tonight).
+// This resolves every player's M96 board — a real survivor they backed becomes
+// pickable, so it parallels the R16+ result flow.
+router.put('/r32/:game', async (req, res) => {
+  try {
+    const winner = sanitizeString(req.body.winner);
+    if (!winner) return res.status(400).json({ error: 'winner is required' });
+
+    const ref = db().collection('config').doc('app');
+    const doc = await ref.get();
+    const realR32 = { ...(doc.exists ? doc.data().realR32 || {} : {}) };
+    realR32[req.params.game] = winner;
+    await ref.set({ realR32 }, { merge: true });
+    res.json({ realR32 });
+  } catch (error) {
+    console.error('Error setting R32 result:', error);
+    res.status(500).json({ error: 'Failed to set R32 result' });
+  }
+});
+
 // Manual trigger for the API-Football poll (Vercel Hobby cron only runs once/day,
 // so the admin can force a check right after a match ends instead of waiting).
 router.post('/poll-scores', async (req, res) => {
@@ -161,7 +182,11 @@ router.get('/status', async (req, res) => {
       (m) => /winner/i.test(m.team_a || '') || /winner/i.test(m.team_b || '') || m.team_a === 'TBD' || m.team_b === 'TBD'
     );
 
-    res.json({ needsResult, unresolvedTeams });
+    const config = await getAppConfig();
+    const realR32 = config.realR32 || {};
+    const r32M87 = realR32.M87 || null; // the one R32 result still pending (Colombia/Ghana)
+
+    res.json({ needsResult, unresolvedTeams, r32M87 });
   } catch (error) {
     console.error('Error fetching admin status:', error);
     res.status(500).json({ error: 'Failed to fetch status' });
