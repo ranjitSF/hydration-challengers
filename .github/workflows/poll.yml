@@ -1,0 +1,19 @@
+name: Poll live scores
+
+# Hands-off result polling. Each run makes at most ONE API-Football request (and
+# zero when no match is in window and M87 is already resolved), so it stays well
+# under the free tier's 100/day. The endpoint itself is guarded by CRON_SECRET.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger score poll
+        run: |
+          curl -sS -X POST "https://hydration-challengers.vercel.app/api/cron/poll-scores" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -w "\nHTTP %{http_code}\n"
