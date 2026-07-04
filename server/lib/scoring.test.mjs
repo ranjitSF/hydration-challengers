@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { scorePlayerPicks, MAX_POSSIBLE_POINTS, POINTS_BY_ROUND } from './scoring.js';
+import { scorePlayerPicks, MAX_POSSIBLE_POINTS, POINTS_BY_ROUND, r32CarryIn } from './scoring.js';
 
 test('max possible points matches the round point table (8/4/2/1 picks)', () => {
   // Note: the brief text claims 190; that arithmetic doesn't reconcile with its own
@@ -23,6 +23,20 @@ test('scores only correct picks at the right round value', () => {
   assert.deepEqual(accuracyByRound.QF, { correct: 0, total: 1 });
   assert.deepEqual(accuracyByRound.SF, { correct: 1, total: 1 });
   assert.deepEqual(accuracyByRound.F, { correct: 0, total: 1 });
+});
+
+test('r32 carry-in is 3 per correct pick, ignoring unpicked/missing games', () => {
+  const realR32 = { M73: 'Canada', M74: 'Paraguay', M75: 'Morocco', M77: 'France' };
+  // Picked France (right) + Paraguay (right) + Netherlands (wrong); never picked M73.
+  const picks = { M74: 'Paraguay', M75: 'Netherlands', M77: 'France' };
+  assert.equal(r32CarryIn(picks, realR32), 6); // 2 correct × 3
+});
+
+test('r32 carry-in grows when a new result (M87) lands', () => {
+  const picks = { M87: 'Colombia' };
+  assert.equal(r32CarryIn(picks, {}), 0); // M87 not decided yet
+  assert.equal(r32CarryIn(picks, { M87: 'Colombia' }), 3); // decided in their favor
+  assert.equal(r32CarryIn(picks, { M87: 'Ghana' }), 0); // decided against them
 });
 
 test('a full perfect bracket scores MAX_POSSIBLE_POINTS', () => {

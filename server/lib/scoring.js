@@ -37,3 +37,17 @@ export function scorePlayerPicks(picksBySlot, resultsBySlot) {
 
 export const MAX_POSSIBLE_POINTS =
   8 * POINTS_BY_ROUND.R16 + 4 * POINTS_BY_ROUND.QF + 2 * POINTS_BY_ROUND.SF + 1 * POINTS_BY_ROUND.F;
+
+// Round-of-32 carry-in, computed live from a player's R32 form picks vs the real
+// R32 results. 3 points per correct pick. Games the player didn't pick (e.g. the
+// one missing from the form) award nothing. Computing this from data means it
+// self-updates the moment a new R32 result (M87) lands — no manual bump.
+export const R32_POINTS_PER_CORRECT = 3;
+
+export function r32CarryIn(r32Picks = {}, realR32 = {}) {
+  let correct = 0;
+  for (const [game, winner] of Object.entries(realR32)) {
+    if (r32Picks[game] && r32Picks[game] === winner) correct += 1;
+  }
+  return correct * R32_POINTS_PER_CORRECT;
+}

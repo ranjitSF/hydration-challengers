@@ -196,7 +196,11 @@ const Admin = () => {
       </section>
 
       <section className="card p-4 space-y-3">
-        <h2 className="font-semibold">Starting points (Round of 32 carryover)</h2>
+        <h2 className="font-semibold">Manual points adjustment</h2>
+        <p className="text-xs text-gray-400">
+          Round-of-32 carry-in is now computed automatically (3 pts per correct pick, updates itself when M87 lands).
+          Use this only for a manual tweak on top — leave at 0 otherwise.
+        </p>
         <div className="space-y-2">
           {players.map((p) => (
             <div key={p.email} className="flex items-center gap-2">
