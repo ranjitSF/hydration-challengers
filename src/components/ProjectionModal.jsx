@@ -76,9 +76,9 @@ const ProjectionModal = ({ playerId, displayName, currentRank, initialTab = 'bra
     <AnimatePresence>
       {playerId && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
+          className="fixed inset-0 z-50 bg-black/70 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto" onClick={onClose}>
           <motion.div initial={{ opacity: 0, scale: 0.96, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96 }}
-            className="card p-5 max-w-6xl w-full my-8 space-y-3" onClick={(e) => e.stopPropagation()}>
+            className="card p-3 sm:p-5 max-w-6xl w-full my-2 sm:my-8 space-y-3" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-xl font-bold truncate">{data?.displayName || displayName}</h2>
               <button onClick={onClose} className="text-gray-400 hover:text-white text-sm shrink-0">Close</button>

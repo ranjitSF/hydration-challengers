@@ -92,8 +92,10 @@ const Standings = () => {
               >
                 <td className="px-3 sm:px-4 py-2 text-gray-400">{i + 1}</td>
                 <td className="px-3 sm:px-4 py-2 font-medium">
-                  {s.displayName}
-                  {!s.hasSubmitted && <span className="ml-2 text-xs text-yellow-400">not submitted</span>}
+                  <div className="flex items-center gap-2">
+                    <span className="truncate max-w-[7rem] sm:max-w-none">{s.displayName}</span>
+                    {!s.hasSubmitted && <span className="text-xs text-yellow-400 shrink-0">not submitted</span>}
+                  </div>
                 </td>
                 <td className="px-4 py-2 whitespace-nowrap">
                   {s.r32Total ? `${s.r32Correct}/${s.r32Total}` : '—'}
