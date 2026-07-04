@@ -40,9 +40,9 @@ const RulesModal = ({ open, onClose }) => (
             <div className="bg-wc-navyDarker rounded-lg p-3">
               <Row round="Round of 32 (carried in)" pts="3 each" />
               <Row round="Round of 16" pts="6 each" />
-              <Row round="Quarterfinals" pts="10 each" />
-              <Row round="Semifinals" pts="16 each" />
-              <Row round="Champion" pts="30" />
+              <Row round="Quarter-finals" pts="10 each" />
+              <Row round="Semi-finals" pts="16 each" />
+              <Row round="Final (champions)" pts="30" />
             </div>
           </div>
 
@@ -58,7 +58,7 @@ const RulesModal = ({ open, onClose }) => (
           <div className="space-y-1 text-sm text-gray-300">
             <p className="font-semibold text-white">Tiebreaker</p>
             <p>
-              Guess the total goals in the actual Championship game. If players tie on points, the closest guess wins (then
+              Guess the total goals in the actual World Cup Final. If players tie on points, the closest guess wins (then
               whoever got more of the later rounds right).
             </p>
           </div>

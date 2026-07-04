@@ -1,7 +1,7 @@
 // Deterministic standings order. Primary: total points. Tiebreak (a real bracket
 // rule that also keeps ordering stable across the client's 25s poll so ranks don't
-// flicker): whoever got more correct in the LATER rounds wins the tie — Champion,
-// then Semifinals, then Quarterfinals, then Round of 16 — finally by name/email so
+// flicker): whoever got more correct in the LATER rounds wins the tie — the Final,
+// then Semi-finals, then Quarter-finals, then Round of 16 — finally by name/email so
 // the result is fully deterministic even for identical brackets.
 export function compareStandings(a, b) {
   const acc = (p, r) => p.accuracyByRound[r].correct;

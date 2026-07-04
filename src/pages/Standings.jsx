@@ -110,7 +110,7 @@ const Standings = () => {
       </div>
 
       <p className="text-center text-xs text-gray-500">
-        Scoring: Round of 32 (carried in) = 3 pts/correct · R16 = 6 · QF = 10 · SF = 16 · Champion = 30.
+        Scoring: Round of 32 (carried in) = 3 pts/correct · R16 = 6 · QF = 10 · SF = 16 · Final = 30.
         Ties broken by closest Final total-goals guess, then later-round accuracy. Tap a player to see their bracket.
       </p>
 

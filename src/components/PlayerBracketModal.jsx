@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getPlayerBracket } from '../services';
 import { getFlag } from '../lib/teams';
 
-const ROUND_LABEL = { R16: 'Round of 16', QF: 'Quarterfinals', SF: 'Semifinals', F: 'Final' };
+const ROUND_LABEL = { R16: 'Round of 16', QF: 'Quarter-finals', SF: 'Semi-finals', F: 'Final' };
 const ROUNDS = ['R16', 'QF', 'SF', 'F'];
 
 const PickRow = ({ p }) => {

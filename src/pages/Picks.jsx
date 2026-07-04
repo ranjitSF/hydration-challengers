@@ -7,7 +7,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import { R16_SLOTS, QF_SLOTS, SF_SLOTS, FINAL_SLOT, deriveMatchup } from '../lib/bracket';
 import { resolveBracket } from '../lib/board';
 
-const ROUND_LABEL = { R16: 'Round of 16', QF: 'Quarterfinal', SF: 'Semifinal', F: 'Final — Champion' };
+const ROUND_LABEL = { R16: 'Round of 16', QF: 'Quarter-final', SF: 'Semi-final', F: 'Final' };
 
 const Picks = () => {
   const { authToken } = useAuth();
@@ -181,7 +181,7 @@ const Picks = () => {
       <div className="card p-4 space-y-2">
         <h2 className="text-lg font-bold accent-text">Tiebreaker</h2>
         <p className="text-sm text-gray-400">
-          Total goals in the actual Championship game (both teams combined). If players tie on points, the closest
+          Total goals in the actual World Cup Final (both teams combined). If players tie on points, the closest
           guess wins.
         </p>
         <input
