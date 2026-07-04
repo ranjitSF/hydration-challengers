@@ -37,6 +37,7 @@ const Standings = () => {
   const top3 = standings.slice(0, 3);
   const rest = standings.slice(3);
   const chartData = standings.map((s) => ({ name: s.displayName, points: s.totalPoints }));
+  const maxPossible = standings[0]?.maxPossible || 'dataMax';
 
   return (
     <div className="space-y-8">
@@ -114,11 +115,16 @@ const Standings = () => {
       </p>
 
       <div className="card p-4">
-        <h2 className="text-sm font-semibold text-gray-400 mb-2">Points by player</h2>
+        <h2 className="text-sm font-semibold text-gray-400 mb-2">
+          Points by player
+          {typeof maxPossible === 'number' && (
+            <span className="font-normal text-gray-500"> · out of {maxPossible} possible</span>
+          )}
+        </h2>
         <ResponsiveContainer width="100%" height={Math.max(200, standings.length * 32)}>
           <BarChart data={chartData} layout="vertical" margin={{ left: 20 }}>
             <CartesianGrid stroke="#232b45" horizontal={false} />
-            <XAxis type="number" stroke="#8892b0" />
+            <XAxis type="number" domain={[0, maxPossible]} allowDataOverflow stroke="#8892b0" />
             <YAxis type="category" dataKey="name" stroke="#8892b0" width={100} />
             <Tooltip contentStyle={{ background: '#141a2e', border: '1px solid #232b45' }} />
             <Bar dataKey="points" fill="#2dd4bf" radius={[0, 4, 4, 0]} />

@@ -1,6 +1,6 @@
 import express from 'express';
 import { db } from '../database/firestore.js';
-import { scorePlayerPicks, r32Accuracy } from '../lib/scoring.js';
+import { scorePlayerPicks, r32Accuracy, MAX_POSSIBLE_POINTS, R32_POINTS_PER_CORRECT } from '../lib/scoring.js';
 import { compareStandings } from '../lib/standings.js';
 import { getAppConfig } from '../lib/config.js';
 
@@ -49,6 +49,12 @@ router.get('/', async (req, res) => {
         hasSubmitted: submitted,
       };
     });
+
+    // Highest total anyone could finish with: every R16→Final pick correct, plus a
+    // perfect R32 carry-in. Sent so the standings chart can scale to it.
+    const maxR32 = standings.reduce((m, s) => Math.max(m, s.r32Total), 0) * R32_POINTS_PER_CORRECT;
+    const maxPossible = MAX_POSSIBLE_POINTS + maxR32;
+    standings.forEach((s) => { s.maxPossible = maxPossible; });
 
     standings.sort(compareStandings);
     res.json(standings);
