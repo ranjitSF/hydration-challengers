@@ -25,7 +25,7 @@ const Layout = () => {
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-40 bg-wc-navyDarker/90 backdrop-blur border-b border-wc-border">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-2 flex-wrap">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-2 flex-wrap">
           <span className="font-bold text-lg">🏆 One More Shot</span>
           <nav className="flex items-center gap-0.5 sm:gap-1">
             <NavLink to="/picks" className={linkClass}>Picks</NavLink>
@@ -37,13 +37,13 @@ const Layout = () => {
           </nav>
         </div>
         {player && (
-          <div className="max-w-3xl mx-auto px-4 pb-2 flex items-center justify-between text-xs text-gray-400">
+          <div className="max-w-4xl mx-auto px-4 pb-2 flex items-center justify-between text-xs text-gray-400">
             <span>Signed in as {player.display_name}</span>
             <button onClick={signOut} className="hover:text-white">Sign out</button>
           </div>
         )}
       </header>
-      <main className="max-w-3xl mx-auto px-4 py-6">
+      <main className="max-w-4xl mx-auto px-4 py-6">
         <Outlet />
       </main>
       <RulesModal open={showRules} onClose={closeRules} />

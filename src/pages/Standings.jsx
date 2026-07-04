@@ -88,7 +88,7 @@ const Standings = () => {
               <th className="px-4 py-2 hidden sm:table-cell">SF</th>
               <th className="px-4 py-2 hidden sm:table-cell">F</th>
               <th className="px-3 sm:px-4 py-2 text-right">Total</th>
-              <th className="px-2 py-2"></th>
+              <th className="px-2 py-2 sticky right-0 bg-wc-card border-l border-wc-border/60 text-center text-[10px]">View</th>
             </tr>
           </thead>
           <tbody>
@@ -116,7 +116,7 @@ const Standings = () => {
                 <td className="px-4 py-2 hidden sm:table-cell whitespace-nowrap"><RoundCell s={s} round="SF" total={2} /></td>
                 <td className="px-4 py-2 hidden sm:table-cell whitespace-nowrap"><RoundCell s={s} round="F" total={1} /></td>
                 <td className="px-3 sm:px-4 py-2 text-right font-bold accent-text">{s.totalPoints}</td>
-                <td className="px-2 py-2">
+                <td className="px-2 py-2 sticky right-0 bg-wc-card border-l border-wc-border/60">
                   <div className="flex items-center gap-1 justify-end">
                     <button title="View bracket" aria-label="View bracket"
                       onClick={() => setViewing({ id: s.playerId, name: s.displayName, rank: i + 1, tab: 'bracket' })}
