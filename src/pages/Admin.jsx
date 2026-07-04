@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { getMatches, getPlayers, adminUpdateMatch, adminSetResult, adminSetStartingPoints, adminGetStatus } from '../services';
+import { getMatches, getPlayers, adminUpdateMatch, adminSetResult, adminSetStartingPoints, adminGetStatus, adminPollScores } from '../services';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const Admin = () => {
@@ -10,6 +10,7 @@ const Admin = () => {
   const [needsResult, setNeedsResult] = useState([]);
   const [drafts, setDrafts] = useState({});
   const [error, setError] = useState('');
+  const [pollStatus, setPollStatus] = useState('');
 
   const load = async () => {
     try {
@@ -57,9 +58,26 @@ const Admin = () => {
     load();
   };
 
+  const pollScoresNow = async () => {
+    setPollStatus('Polling API-Football...');
+    try {
+      const result = await adminPollScores(authToken);
+      setPollStatus(result.skipped ? result.skipped : `Checked ${result.checked ?? 0}, updated ${result.updated ?? 0}`);
+      load();
+    } catch (err) {
+      setPollStatus(err.message);
+    }
+  };
+
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-bold">Admin</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Admin</h1>
+        <div className="flex items-center gap-3">
+          {pollStatus && <span className="text-xs text-gray-400">{pollStatus}</span>}
+          <button onClick={pollScoresNow} className="btn-primary text-sm px-3">Poll scores now</button>
+        </div>
+      </div>
 
       {needsResult.length > 0 && (
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 text-yellow-300 text-sm">

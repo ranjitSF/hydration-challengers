@@ -30,3 +30,4 @@ export const adminSetResult = (matchId, winner, token) =>
 export const adminSetStartingPoints = (playerId, startingPoints, token) =>
   request(`/admin/players/${playerId}/starting-points`, { method: 'PUT', body: { startingPoints }, token });
 export const adminGetStatus = (token) => request('/admin/status', { token });
+export const adminPollScores = (token) => request('/admin/poll-scores', { method: 'POST', token });

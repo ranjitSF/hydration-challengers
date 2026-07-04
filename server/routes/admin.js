@@ -2,6 +2,7 @@ import express from 'express';
 import { db } from '../database/firestore.js';
 import { verifyToken } from '../config/firebase.js';
 import { sanitizeString } from '../utils/validation.js';
+import { pollOnce } from '../jobs/scorePoller.js';
 
 const router = express.Router();
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
@@ -69,6 +70,18 @@ router.put('/players/:email/starting-points', async (req, res) => {
   } catch (error) {
     console.error('Error updating starting points:', error);
     res.status(500).json({ error: 'Failed to update starting points' });
+  }
+});
+
+// Manual trigger for the API-Football poll (Vercel Hobby cron only runs once/day,
+// so the admin can force a check right after a match ends instead of waiting).
+router.post('/poll-scores', async (req, res) => {
+  try {
+    const result = await pollOnce();
+    res.json(result);
+  } catch (error) {
+    console.error('Manual poll error:', error);
+    res.status(500).json({ error: 'Poll failed' });
   }
 });
 
