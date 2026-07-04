@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import RulesModal from './RulesModal';
 
 const linkClass = ({ isActive }) =>
-  `px-3 py-2 rounded-lg text-sm font-medium transition ${
+  `px-2.5 sm:px-3 py-2 rounded-lg text-sm font-medium transition ${
     isActive ? 'bg-wc-accent text-wc-navyDarker' : 'text-gray-300 hover:text-white'
   }`;
 
@@ -25,9 +25,9 @@ const Layout = () => {
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-40 bg-wc-navyDarker/90 backdrop-blur border-b border-wc-border">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-2 flex-wrap">
           <span className="font-bold text-lg">🏆 One More Shot</span>
-          <nav className="flex items-center gap-1">
+          <nav className="flex items-center gap-0.5 sm:gap-1">
             <NavLink to="/picks" className={linkClass}>Picks</NavLink>
             <NavLink to="/standings" className={linkClass}>Standings</NavLink>
             {isAdmin && <NavLink to="/admin" className={linkClass}>Admin</NavLink>}

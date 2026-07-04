@@ -64,17 +64,17 @@ const Standings = () => {
         </div>
       )}
 
-      <div className="card overflow-hidden">
+      <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-gray-400 border-b border-wc-border">
-              <th className="px-4 py-2">#</th>
-              <th className="px-4 py-2">Player</th>
-              <th className="px-4 py-2">R16</th>
-              <th className="px-4 py-2">QF</th>
-              <th className="px-4 py-2">SF</th>
-              <th className="px-4 py-2">F</th>
-              <th className="px-4 py-2 text-right">Total</th>
+              <th className="px-3 sm:px-4 py-2">#</th>
+              <th className="px-3 sm:px-4 py-2">Player</th>
+              <th className="px-4 py-2 hidden sm:table-cell">R16</th>
+              <th className="px-4 py-2 hidden sm:table-cell">QF</th>
+              <th className="px-4 py-2 hidden sm:table-cell">SF</th>
+              <th className="px-4 py-2 hidden sm:table-cell">F</th>
+              <th className="px-3 sm:px-4 py-2 text-right">Total</th>
             </tr>
           </thead>
           <tbody>
@@ -87,16 +87,16 @@ const Standings = () => {
                 onClick={() => setViewing({ id: s.playerId, name: s.displayName })}
                 className="border-b border-wc-border/50 last:border-0 cursor-pointer hover:bg-wc-accent/5"
               >
-                <td className="px-4 py-2 text-gray-400">{i + 1}</td>
-                <td className="px-4 py-2 font-medium">
+                <td className="px-3 sm:px-4 py-2 text-gray-400">{i + 1}</td>
+                <td className="px-3 sm:px-4 py-2 font-medium">
                   {s.displayName}
                   {!s.hasSubmitted && <span className="ml-2 text-xs text-yellow-400">not submitted</span>}
                 </td>
-                <td className="px-4 py-2">{s.hasSubmitted ? `${s.accuracyByRound.R16.correct}/8` : '—'}</td>
-                <td className="px-4 py-2">{s.hasSubmitted ? `${s.accuracyByRound.QF.correct}/4` : '—'}</td>
-                <td className="px-4 py-2">{s.hasSubmitted ? `${s.accuracyByRound.SF.correct}/2` : '—'}</td>
-                <td className="px-4 py-2">{s.hasSubmitted ? `${s.accuracyByRound.F.correct}/1` : '—'}</td>
-                <td className="px-4 py-2 text-right font-bold accent-text">{s.totalPoints}</td>
+                <td className="px-4 py-2 hidden sm:table-cell">{s.hasSubmitted ? `${s.accuracyByRound.R16.correct}/8` : '—'}</td>
+                <td className="px-4 py-2 hidden sm:table-cell">{s.hasSubmitted ? `${s.accuracyByRound.QF.correct}/4` : '—'}</td>
+                <td className="px-4 py-2 hidden sm:table-cell">{s.hasSubmitted ? `${s.accuracyByRound.SF.correct}/2` : '—'}</td>
+                <td className="px-4 py-2 hidden sm:table-cell">{s.hasSubmitted ? `${s.accuracyByRound.F.correct}/1` : '—'}</td>
+                <td className="px-3 sm:px-4 py-2 text-right font-bold accent-text">{s.totalPoints}</td>
               </motion.tr>
             ))}
           </tbody>
