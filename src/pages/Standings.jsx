@@ -70,6 +70,7 @@ const Standings = () => {
             <tr className="text-left text-gray-400 border-b border-wc-border">
               <th className="px-3 sm:px-4 py-2">#</th>
               <th className="px-3 sm:px-4 py-2">Player</th>
+              <th className="px-4 py-2">R32</th>
               <th className="px-4 py-2 hidden sm:table-cell">R16</th>
               <th className="px-4 py-2 hidden sm:table-cell">QF</th>
               <th className="px-4 py-2 hidden sm:table-cell">SF</th>
@@ -91,6 +92,10 @@ const Standings = () => {
                 <td className="px-3 sm:px-4 py-2 font-medium">
                   {s.displayName}
                   {!s.hasSubmitted && <span className="ml-2 text-xs text-yellow-400">not submitted</span>}
+                </td>
+                <td className="px-4 py-2 whitespace-nowrap">
+                  {s.r32Total ? `${s.r32Correct}/${s.r32Total}` : '—'}
+                  <span className="text-gray-500"> ({s.r32Points})</span>
                 </td>
                 <td className="px-4 py-2 hidden sm:table-cell">{s.hasSubmitted ? `${s.accuracyByRound.R16.correct}/8` : '—'}</td>
                 <td className="px-4 py-2 hidden sm:table-cell">{s.hasSubmitted ? `${s.accuracyByRound.QF.correct}/4` : '—'}</td>

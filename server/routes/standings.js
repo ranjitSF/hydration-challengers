@@ -1,6 +1,6 @@
 import express from 'express';
 import { db } from '../database/firestore.js';
-import { scorePlayerPicks, r32CarryIn } from '../lib/scoring.js';
+import { scorePlayerPicks, r32Accuracy } from '../lib/scoring.js';
 import { compareStandings } from '../lib/standings.js';
 import { getAppConfig } from '../lib/config.js';
 
@@ -27,7 +27,9 @@ router.get('/', async (req, res) => {
       // Only a submitted bracket scores; an auto-saved draft counts for nothing.
       const picksBySlot = submitted ? picksDoc.picksBySlot || {} : {};
       const { total, accuracyByRound } = scorePlayerPicks(picksBySlot, resultsBySlot);
-      const r32Points = r32CarryIn(player.r32Picks || {}, realR32); // live from data
+      // R32 carry-in, live from data — applies to everyone regardless of R16 submission.
+      const r32 = r32Accuracy(player.r32Picks || {}, realR32);
+      const r32Points = r32.points;
       const adjustment = player.starting_points || 0; // optional manual tweak
       const prediction = submitted && Number.isInteger(picksDoc.finalGoals) ? picksDoc.finalGoals : null;
       const goalsDiff =
@@ -36,6 +38,8 @@ router.get('/', async (req, res) => {
         playerId: doc.id,
         displayName: player.display_name,
         r32Points,
+        r32Correct: r32.correct,
+        r32Total: r32.total,
         adjustment,
         pickPoints: total,
         totalPoints: r32Points + adjustment + total,

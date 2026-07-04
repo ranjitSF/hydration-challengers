@@ -44,10 +44,20 @@ export const MAX_POSSIBLE_POINTS =
 // self-updates the moment a new R32 result (M87) lands — no manual bump.
 export const R32_POINTS_PER_CORRECT = 3;
 
-export function r32CarryIn(r32Picks = {}, realR32 = {}) {
+// Per-player R32 accuracy: only games the player actually had on their form count
+// toward the total (the auto-granted game missing from the form is excluded), so
+// the denominator reflects real predictions.
+export function r32Accuracy(r32Picks = {}, realR32 = {}) {
   let correct = 0;
+  let total = 0;
   for (const [game, winner] of Object.entries(realR32)) {
-    if (r32Picks[game] && r32Picks[game] === winner) correct += 1;
+    if (!(game in r32Picks)) continue; // player had no pick here (e.g. the auto game)
+    total += 1;
+    if (r32Picks[game] === winner) correct += 1;
   }
-  return correct * R32_POINTS_PER_CORRECT;
+  return { correct, total, points: correct * R32_POINTS_PER_CORRECT };
+}
+
+export function r32CarryIn(r32Picks = {}, realR32 = {}) {
+  return r32Accuracy(r32Picks, realR32).points;
 }
