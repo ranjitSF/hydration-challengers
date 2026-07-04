@@ -1,8 +1,8 @@
 name: Poll live scores
 
-# Hands-off result polling. Each run makes at most ONE API-Football request (and
-# zero when no match is in window and M87 is already resolved), so it stays well
-# under the free tier's 100/day. The endpoint itself is guarded by CRON_SECRET.
+# Hands-off result polling. The endpoint pulls finished results from ESPN's free
+# public scoreboard (no key/cap) and no-ops when nothing needs a result. Guarded
+# by CRON_SECRET.
 on:
   schedule:
     - cron: '*/10 * * * *'
