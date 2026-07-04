@@ -9,3 +9,6 @@ dist
 
 # real roster (personal emails — never commit to a public repo)
 roster.local.json
+
+# one-off local scripts that embed personal data
+*.local.mjs
