@@ -26,6 +26,7 @@ export const submitPicks = (picks, finalGoals, token) => request('/picks', { met
 export const getPlayerBracket = (id) => request(`/players/${encodeURIComponent(id)}/bracket`);
 export const getPlayerProjection = (id) => request(`/players/${encodeURIComponent(id)}/projection`);
 export const getStandings = () => request('/standings');
+export const getLive = (token) => request('/live', { token });
 export const getConfig = () => request('/config');
 
 export const adminUpdateMatch = (id, body, token) => request(`/admin/matches/${id}`, { method: 'PUT', body, token });

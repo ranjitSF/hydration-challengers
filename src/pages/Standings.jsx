@@ -3,11 +3,20 @@ import { motion } from 'framer-motion';
 import { getStandings } from '../services';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ProjectionModal from '../components/ProjectionModal';
+import LiveBanner from '../components/LiveBanner';
 import { GitBranch, TrendingUp } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 const POLL_MS = 25000;
 const MEDALS = ['🥇', '🥈', '🥉'];
+const ROUND_PTS = { R16: 6, QF: 10, SF: 16, F: 30 };
+
+// A round accuracy cell: correct/total plus the points secured in that round, e.g. "2/8 (12)".
+const RoundCell = ({ s, round, total }) => {
+  if (!s.hasSubmitted) return <>—</>;
+  const c = s.accuracyByRound[round].correct;
+  return <>{c}/{total} <span className="text-gray-500">({c * ROUND_PTS[round]})</span></>;
+};
 
 const Standings = () => {
   const [standings, setStandings] = useState(null);
@@ -42,6 +51,7 @@ const Standings = () => {
 
   return (
     <div className="space-y-8">
+      <LiveBanner />
       <h1 className="text-2xl font-bold text-center">Standings</h1>
 
       {top3.length > 0 && (
@@ -101,10 +111,10 @@ const Standings = () => {
                   {s.r32Total ? `${s.r32Correct}/${s.r32Total}` : '—'}
                   <span className="text-gray-500"> ({s.r32Points})</span>
                 </td>
-                <td className="px-4 py-2 hidden sm:table-cell">{s.hasSubmitted ? `${s.accuracyByRound.R16.correct}/8` : '—'}</td>
-                <td className="px-4 py-2 hidden sm:table-cell">{s.hasSubmitted ? `${s.accuracyByRound.QF.correct}/4` : '—'}</td>
-                <td className="px-4 py-2 hidden sm:table-cell">{s.hasSubmitted ? `${s.accuracyByRound.SF.correct}/2` : '—'}</td>
-                <td className="px-4 py-2 hidden sm:table-cell">{s.hasSubmitted ? `${s.accuracyByRound.F.correct}/1` : '—'}</td>
+                <td className="px-4 py-2 hidden sm:table-cell whitespace-nowrap"><RoundCell s={s} round="R16" total={8} /></td>
+                <td className="px-4 py-2 hidden sm:table-cell whitespace-nowrap"><RoundCell s={s} round="QF" total={4} /></td>
+                <td className="px-4 py-2 hidden sm:table-cell whitespace-nowrap"><RoundCell s={s} round="SF" total={2} /></td>
+                <td className="px-4 py-2 hidden sm:table-cell whitespace-nowrap"><RoundCell s={s} round="F" total={1} /></td>
                 <td className="px-3 sm:px-4 py-2 text-right font-bold accent-text">{s.totalPoints}</td>
                 <td className="px-2 py-2">
                   <div className="flex items-center gap-1 justify-end">

@@ -8,6 +8,7 @@ import standingsRouter from './routes/standings.js';
 import adminRouter from './routes/admin.js';
 import configRouter from './routes/config.js';
 import cronRouter from './routes/cron.js';
+import liveRouter from './routes/live.js';
 
 initializeFirebase();
 
@@ -27,6 +28,7 @@ app.use('/api/standings', standingsRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/config', configRouter);
 app.use('/api/cron', cronRouter);
+app.use('/api/live', liveRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });

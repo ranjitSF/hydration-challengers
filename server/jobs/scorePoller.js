@@ -1,6 +1,7 @@
 import { db } from '../database/firestore.js';
 import { getAppConfig, resolveM87 } from '../lib/config.js';
 import { fetchEspnEvents, findEspnEvent, espnWinnerName, espnTotalGoals, espnDateOf } from '../lib/espn.js';
+import { ROUND_BY_SLOT } from '../lib/bracket.js';
 
 // The last Round-of-32 game (Colombia/Ghana). Its result opens M96 and updates the
 // R32 carry-in. Stop auto-polling it after this deadline (then manual entry).
@@ -87,5 +88,36 @@ export async function pollOnce() {
     }
   }
 
+  return out;
+}
+
+// Games currently in progress (ESPN state 'in'), mapped to our slots + live scores.
+// Read-only; used by the top-of-page live box. Returns [] when nothing is live.
+export async function liveGames() {
+  const [pending, config] = await Promise.all([unresolvedMatches(), getAppConfig()]);
+  if (pending.length === 0) return [];
+  const map = config.teamNameMap || {};
+  const dates = [...new Set(pending.map((m) => espnDateOf(m.kickoff_at)))];
+  const events = await fetchEspnEvents(dates);
+
+  const out = [];
+  for (const m of pending) {
+    const event = findEspnEvent(events, toEspn(m.team_a, map), toEspn(m.team_b, map));
+    if (!event || event.status?.type?.state !== 'in') continue;
+    const comps = event.competitions?.[0]?.competitors || [];
+    const scoreOf = (ourName) => {
+      const c = comps.find((x) => x.team?.displayName === toEspn(ourName, map));
+      return c ? Number(c.score) || 0 : 0;
+    };
+    out.push({
+      slot: m.slot,
+      round: ROUND_BY_SLOT[m.slot],
+      teamA: m.team_a,
+      teamB: m.team_b,
+      scoreA: scoreOf(m.team_a),
+      scoreB: scoreOf(m.team_b),
+      detail: event.status?.type?.detail || event.status?.type?.shortDetail || 'LIVE',
+    });
+  }
   return out;
 }

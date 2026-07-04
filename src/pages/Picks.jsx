@@ -4,6 +4,7 @@ import { getMatches, getMyPicks, saveDraft, submitPicks, getConfig } from '../se
 import MatchCard from '../components/MatchCard';
 import BracketConnector from '../components/BracketConnector';
 import LoadingSpinner from '../components/LoadingSpinner';
+import LiveBanner from '../components/LiveBanner';
 import { R16_SLOTS, QF_SLOTS, SF_SLOTS, FINAL_SLOT, deriveMatchup } from '../lib/bracket';
 import { resolveBracket } from '../lib/board';
 
@@ -141,6 +142,7 @@ const Picks = () => {
 
   return (
     <div className="space-y-6 pb-28">
+      <LiveBanner />
       <div className="card p-4 text-sm text-gray-300 space-y-1">
         <p className="font-semibold text-white">How your bracket works</p>
         <p>
