@@ -57,7 +57,7 @@ const Card = ({ item, highlight, dim, isFinal }) => {
   const team = item?.picked;
   const champion = isFinal && (status === 'won' || status === 'alive');
   const indicator = highlight != null
-    ? (highlight ? `+${item.points ?? ROUND_PTS.F}` : '')
+    ? (highlight ? `+${ROUND_PTS[item?.round] ?? ROUND_PTS.F}` : '') // potential points for this round
     : status === 'won' ? '✓' : status === 'out' ? '✗' : '';
   return (
     <div className={`relative z-10 rounded border px-1.5 h-[26px] flex items-center gap-1 text-[11px] leading-none
