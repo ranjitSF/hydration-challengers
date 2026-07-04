@@ -4,8 +4,8 @@ import { getFlag } from '../lib/teams';
 // Standard two-sided knockout bracket: both halves converge on a centered Final.
 // Column order left→right: R32 R16 QF SF | Final | SF QF R16 R32.
 const U = 40;         // px height of one R32 row
-const CARD_W = 112;   // px card / column width
-const GAP = 24;       // px gap between columns (connectors live here)
+const CARD_W = 104;   // px card / column width
+const GAP = 20;       // px gap between columns (connectors live here)
 const LINE = '#334166';
 
 // Slot order per half, top→bottom, matched to the feeder pairing so cards align.
