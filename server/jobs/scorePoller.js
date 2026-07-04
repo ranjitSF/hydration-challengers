@@ -1,20 +1,25 @@
 import { db } from '../database/firestore.js';
 import { getAppConfig } from '../lib/config.js';
 
-const API_FOOTBALL_BASE = 'https://v3.football.api-football.com';
+// Direct API-Football host (dashboard key uses x-apisports-key). NOTE: the Free
+// plan can't query a season/date for 2026, but the un-scoped `live=all` feed DOES
+// include World Cup 2026 games while they're being played — so we resolve results
+// from the live feed and must poll often enough to catch full-time.
+const API_FOOTBALL_BASE = 'https://v3.football.api-sports.io';
 const FINISHED_STATUSES = new Set(['FT', 'AET', 'PEN']);
 
-// The one Round-of-32 game still to play; its result opens M96 for everyone who
-// backed the winner and updates the R32 carry-in automatically.
-const R32_WATCH = { game: 'M87', teamA: 'Colombia', teamB: 'Ghana', dates: ['2026-07-03', '2026-07-04'] };
+// The one Round-of-32 game still to play. Its result opens M96 and updates the
+// R32 carry-in. Poll for it only until this deadline, then fall back to manual.
+const R32_WATCH = { game: 'M87', teamA: 'Colombia', teamB: 'Ghana' };
+const M87_DEADLINE = Date.parse('2026-07-04T08:00:00Z');
 
 async function getTeamNameMap() {
   const { teamNameMap } = await getAppConfig();
   return teamNameMap || {};
 }
 
-async function apiFixtures(query) {
-  const res = await fetch(`${API_FOOTBALL_BASE}/fixtures?${query}`, {
+async function fetchLiveFixtures() {
+  const res = await fetch(`${API_FOOTBALL_BASE}/fixtures?live=all`, {
     headers: { 'x-apisports-key': process.env.API_FOOTBALL_KEY },
   });
   if (!res.ok) throw new Error(`API-Football request failed: ${res.status}`);
@@ -22,10 +27,6 @@ async function apiFixtures(query) {
   return data.response || [];
 }
 
-const fetchLiveFixtures = () => apiFixtures('live=all');
-const fetchFixturesByDate = (date) => apiFixtures(`league=1&season=2026&date=${date}`);
-
-// Find the fixture for a matchup regardless of home/away order.
 function findFixture(fixtures, apiA, apiB) {
   return fixtures.find((f) => {
     const home = f.teams.home.name;
@@ -34,11 +35,9 @@ function findFixture(fixtures, apiA, apiB) {
   });
 }
 
-// Decide the winner of a finished fixture, mapping the API name back to ours.
-// ourA/ourB are our names; apiA/apiB the API names for the same two teams.
+// Winner of a finished fixture, mapped from the API name back to ours.
 function decideWinner(fixture, apiA, apiB, ourA, ourB) {
-  const status = fixture.fixture.status.short;
-  if (!FINISHED_STATUSES.has(status)) return null;
+  if (!FINISHED_STATUSES.has(fixture.fixture.status.short)) return null;
   const { home: hg, away: ag } = fixture.goals;
   const { home: ph, away: pa } = fixture.score.penalty;
   let winnerApi = null;
@@ -75,59 +74,47 @@ async function writeAutoResult(slot, winner) {
   await ref.set({ winner, source: 'auto', updatedAt: new Date().toISOString() });
 }
 
-// Auto-resolve the Colombia/Ghana R32 game → config.realR32.M87.
-export async function pollR32M87() {
-  const { realR32 = {} } = await getAppConfig();
-  if (realR32[R32_WATCH.game]) return { m87: 'already set' };
-
-  const map = await getTeamNameMap();
-  const apiA = map[R32_WATCH.teamA] || R32_WATCH.teamA;
-  const apiB = map[R32_WATCH.teamB] || R32_WATCH.teamB;
-
-  // Live feed catches it while playing; dated queries catch it once it's finished.
-  let fixture = findFixture(await fetchLiveFixtures(), apiA, apiB);
-  for (const date of R32_WATCH.dates) {
-    if (fixture) break;
-    fixture = findFixture(await fetchFixturesByDate(date), apiA, apiB);
-  }
-  if (!fixture) return { m87: 'fixture not found' };
-
-  const winner = decideWinner(fixture, apiA, apiB, R32_WATCH.teamA, R32_WATCH.teamB);
-  if (!winner) return { m87: 'not finished' };
-
-  await db().collection('config').doc('app').set({ realR32: { ...realR32, [R32_WATCH.game]: winner } }, { merge: true });
-  console.log(`✓ Auto-resolved R32 ${R32_WATCH.game}: ${winner}`);
-  return { m87: winner };
-}
-
-// One poll: resolve any finished R16→Final matches AND the pending R32 game.
+// One poll = at most ONE API request (mindful of the 100/day free cap): fetch the
+// live feed once and resolve any in-window R16→Final match AND the pending R32 game.
 export async function pollOnce() {
   if (!process.env.API_FOOTBALL_KEY) return { skipped: 'API_FOOTBALL_KEY not set' };
 
-  const out = { checked: 0, updated: 0 };
-  const map = await getTeamNameMap();
+  const [pending, { realR32 = {} }] = await Promise.all([matchesInWindow(), getAppConfig()]);
+  const needM87 = !realR32[R32_WATCH.game] && Date.now() < M87_DEADLINE;
+  if (pending.length === 0 && !needM87) return { checked: 0, updated: 0 };
 
-  const pending = await matchesInWindow();
-  if (pending.length > 0) {
-    const fixtures = await fetchLiveFixtures();
-    out.checked = pending.length;
-    for (const match of pending) {
-      const apiA = map[match.team_a] || match.team_a;
-      const apiB = map[match.team_b] || match.team_b;
-      const fixture = findFixture(fixtures, apiA, apiB);
-      if (!fixture) continue;
-      const winner = decideWinner(fixture, apiA, apiB, match.team_a, match.team_b);
-      if (!winner) continue;
-      await writeAutoResult(match.slot, winner);
-      out.updated += 1;
-      console.log(`✓ Auto-recorded ${match.slot}: ${winner}`);
-    }
+  const map = await getTeamNameMap();
+  const fixtures = await fetchLiveFixtures();
+  const out = { checked: pending.length, updated: 0 };
+
+  for (const match of pending) {
+    const apiA = map[match.team_a] || match.team_a;
+    const apiB = map[match.team_b] || match.team_b;
+    const fixture = findFixture(fixtures, apiA, apiB);
+    if (!fixture) continue;
+    const winner = decideWinner(fixture, apiA, apiB, match.team_a, match.team_b);
+    if (!winner) continue;
+    await writeAutoResult(match.slot, winner);
+    out.updated += 1;
+    console.log(`✓ Auto-recorded ${match.slot}: ${winner}`);
   }
 
-  try {
-    out.r32 = (await pollR32M87()).m87;
-  } catch (err) {
-    out.r32 = `error: ${err.message}`;
+  if (needM87) {
+    const apiA = map[R32_WATCH.teamA] || R32_WATCH.teamA;
+    const apiB = map[R32_WATCH.teamB] || R32_WATCH.teamB;
+    const fixture = findFixture(fixtures, apiA, apiB);
+    if (!fixture) {
+      out.r32 = 'not live';
+    } else {
+      const winner = decideWinner(fixture, apiA, apiB, R32_WATCH.teamA, R32_WATCH.teamB);
+      if (winner) {
+        await db().collection('config').doc('app').set({ realR32: { ...realR32, [R32_WATCH.game]: winner } }, { merge: true });
+        out.r32 = winner;
+        console.log(`✓ Auto-resolved R32 ${R32_WATCH.game}: ${winner}`);
+      } else {
+        out.r32 = `live (${fixture.fixture.status.short})`;
+      }
+    }
   }
 
   return out;
