@@ -24,6 +24,7 @@ export const getMyPicks = (token) => request('/picks/me', { token });
 export const saveDraft = (picks, finalGoals, token) => request('/picks', { method: 'POST', body: { picks, finalGoals, submit: false }, token });
 export const submitPicks = (picks, finalGoals, token) => request('/picks', { method: 'POST', body: { picks, finalGoals, submit: true }, token });
 export const getPlayerBracket = (id) => request(`/players/${encodeURIComponent(id)}/bracket`);
+export const getPlayerProjection = (id) => request(`/players/${encodeURIComponent(id)}/projection`);
 export const getStandings = () => request('/standings');
 export const getConfig = () => request('/config');
 

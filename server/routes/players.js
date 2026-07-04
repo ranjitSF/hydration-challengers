@@ -2,8 +2,9 @@ import express from 'express';
 import { db } from '../database/firestore.js';
 import { verifyToken, admin } from '../config/firebase.js';
 import { getAppConfig, isLocked } from '../lib/config.js';
-import { ALL_SLOTS, ROUND_BY_SLOT } from '../lib/bracket.js';
-import { POINTS_BY_ROUND } from '../lib/scoring.js';
+import { ALL_SLOTS, ROUND_BY_SLOT, R16_SLOTS, R32_FEEDERS, AUTO_R32_GAME } from '../lib/bracket.js';
+import { POINTS_BY_ROUND, R32_POINTS_PER_CORRECT } from '../lib/scoring.js';
+import { computeEliminated, projectPlayer, computeBestRanks, realMatchup } from '../lib/projection.js';
 import { sendSignInEmail, emailConfigured } from '../utils/email.js';
 import { isValidEmail, sanitizeString } from '../utils/validation.js';
 
@@ -130,6 +131,108 @@ router.get('/:id/bracket', async (req, res) => {
   } catch (error) {
     console.error('Error fetching bracket:', error);
     res.status(500).json({ error: 'Failed to fetch bracket' });
+  }
+});
+
+// Post-lock only: full projection for one player — their bracket (R32 → Final with
+// real results), point ceiling + the exact remaining wins to reach it, and the best
+// standings rank they can still finish in (exact, via bracket enumeration).
+router.get('/:id/projection', async (req, res) => {
+  try {
+    if (!(await isLocked())) {
+      return res.status(403).json({ error: 'Projections become visible once picks lock' });
+    }
+    const email = req.params.id.toLowerCase();
+    const [playersSnap, picksSnap, resultsSnap, config] = await Promise.all([
+      db().collection('players').get(),
+      db().collection('picks').get(),
+      db().collection('results').get(),
+      getAppConfig(),
+    ]);
+    const targetDoc = playersSnap.docs.find((d) => d.id === email);
+    if (!targetDoc) return res.status(404).json({ error: 'Player not found' });
+
+    const realR32 = config.realR32 || {};
+    const realResults = Object.fromEntries(resultsSnap.docs.map((d) => [d.id, d.data().winner]));
+    const picksByEmail = Object.fromEntries(picksSnap.docs.map((d) => [d.id, d.data()]));
+    const eliminated = computeEliminated(realResults, realR32);
+
+    const buildPlayer = (doc) => {
+      const p = doc.data();
+      const pk = picksByEmail[doc.id] || {};
+      const submitted = pk.submitted === true;
+      return {
+        playerId: doc.id,
+        display_name: p.display_name,
+        r32Picks: p.r32Picks || {},
+        starting_points: p.starting_points || 0,
+        picksBySlot: submitted ? pk.picksBySlot || {} : {},
+        submitted,
+      };
+    };
+    const allPlayers = playersSnap.docs.map(buildPlayer);
+    const target = buildPlayer(targetDoc);
+    const proj = projectPlayer(target, realResults, realR32, eliminated);
+
+    // Best achievable rank needs everyone's current total as the base.
+    const withBase = allPlayers.map((pl) => ({
+      playerId: pl.playerId,
+      picksBySlot: pl.picksBySlot,
+      base: projectPlayer(pl, realResults, realR32, eliminated).currentTotal,
+    }));
+    const bestRanks = computeBestRanks(withBase, realResults, realR32);
+
+    const statusOf = (picked, winner, decided, correct) => {
+      if (!picked) return 'none';
+      if (decided) return correct ? 'won' : 'out';
+      return eliminated.has(picked) ? 'dead' : 'alive';
+    };
+
+    // R32 column: 16 games in bracket order, grouped by the R16 slot they feed.
+    const r32 = [];
+    for (const slot of R16_SLOTS) {
+      for (const game of R32_FEEDERS[slot]) {
+        const auto = game === AUTO_R32_GAME;
+        const winner = realR32[game] || null;
+        const picked = auto ? winner : target.r32Picks[game] || null;
+        const correct = !!winner && picked === winner;
+        r32.push({
+          game, feedsR16: slot, picked, winner, decided: !!winner, correct, auto,
+          points: correct && !auto ? R32_POINTS_PER_CORRECT : 0,
+          status: auto ? 'auto' : statusOf(picked, winner, !!winner, correct),
+        });
+      }
+    }
+
+    // R16 → Final bracket for the target.
+    const bracket = ALL_SLOTS.map((slot) => {
+      const round = ROUND_BY_SLOT[slot];
+      const picked = target.picksBySlot[slot] || null;
+      const winner = realResults[slot] || null;
+      const correct = !!winner && picked === winner;
+      return {
+        slot, round, picked, winner, decided: !!winner, correct,
+        points: correct ? POINTS_BY_ROUND[round] : 0,
+        status: statusOf(picked, winner, !!winner, correct),
+        teams: realMatchup(slot, realResults, realR32),
+      };
+    });
+
+    res.json({
+      displayName: target.display_name,
+      submitted: target.submitted,
+      r32,
+      bracket,
+      currentTotal: proj.currentTotal,
+      ceiling: proj.ceiling,
+      remaining: proj.remaining,
+      path: proj.path,
+      bestRank: bestRanks[target.playerId],
+      playerCount: allPlayers.length,
+    });
+  } catch (error) {
+    console.error('Error computing projection:', error);
+    res.status(500).json({ error: 'Failed to compute projection' });
   }
 });
 

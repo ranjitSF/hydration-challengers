@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { getStandings } from '../services';
 import LoadingSpinner from '../components/LoadingSpinner';
-import PlayerBracketModal from '../components/PlayerBracketModal';
+import ProjectionModal from '../components/ProjectionModal';
+import { GitBranch, TrendingUp } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 const POLL_MS = 25000;
@@ -53,7 +54,7 @@ const Standings = () => {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.1 * i }}
-                onClick={() => setViewing({ id: player.playerId, name: player.displayName })}
+                onClick={() => setViewing({ id: player.playerId, name: player.displayName, rank: standings.indexOf(player) + 1, tab: 'bracket' })}
                 className={`card text-center p-4 cursor-pointer hover:border-wc-accent/50 ${isFirst ? 'order-2 w-32' : 'w-28'}`}
               >
                 <div className="text-3xl mb-1">{MEDALS[top3.indexOf(player)]}</div>
@@ -77,6 +78,7 @@ const Standings = () => {
               <th className="px-4 py-2 hidden sm:table-cell">SF</th>
               <th className="px-4 py-2 hidden sm:table-cell">F</th>
               <th className="px-3 sm:px-4 py-2 text-right">Total</th>
+              <th className="px-2 py-2"></th>
             </tr>
           </thead>
           <tbody>
@@ -86,8 +88,7 @@ const Standings = () => {
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.02 * i }}
-                onClick={() => setViewing({ id: s.playerId, name: s.displayName })}
-                className="border-b border-wc-border/50 last:border-0 cursor-pointer hover:bg-wc-accent/5"
+                className="border-b border-wc-border/50 last:border-0 hover:bg-wc-accent/5"
               >
                 <td className="px-3 sm:px-4 py-2 text-gray-400">{i + 1}</td>
                 <td className="px-3 sm:px-4 py-2 font-medium">
@@ -103,6 +104,20 @@ const Standings = () => {
                 <td className="px-4 py-2 hidden sm:table-cell">{s.hasSubmitted ? `${s.accuracyByRound.SF.correct}/2` : '—'}</td>
                 <td className="px-4 py-2 hidden sm:table-cell">{s.hasSubmitted ? `${s.accuracyByRound.F.correct}/1` : '—'}</td>
                 <td className="px-3 sm:px-4 py-2 text-right font-bold accent-text">{s.totalPoints}</td>
+                <td className="px-2 py-2">
+                  <div className="flex items-center gap-1 justify-end">
+                    <button title="View bracket" aria-label="View bracket"
+                      onClick={() => setViewing({ id: s.playerId, name: s.displayName, rank: i + 1, tab: 'bracket' })}
+                      className="p-1.5 rounded-md text-gray-400 hover:text-wc-accent hover:bg-wc-accent/10">
+                      <GitBranch size={16} />
+                    </button>
+                    <button title="Path to best finish" aria-label="Path to best finish"
+                      onClick={() => setViewing({ id: s.playerId, name: s.displayName, rank: i + 1, tab: 'finish' })}
+                      className="p-1.5 rounded-md text-gray-400 hover:text-wc-accent hover:bg-wc-accent/10">
+                      <TrendingUp size={16} />
+                    </button>
+                  </div>
+                </td>
               </motion.tr>
             ))}
           </tbody>
@@ -132,9 +147,11 @@ const Standings = () => {
         </ResponsiveContainer>
       </div>
 
-      <PlayerBracketModal
+      <ProjectionModal
         playerId={viewing?.id}
         displayName={viewing?.name}
+        currentRank={viewing?.rank}
+        initialTab={viewing?.tab}
         onClose={() => setViewing(null)}
       />
     </div>
