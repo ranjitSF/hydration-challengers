@@ -31,11 +31,21 @@ async function unresolvedMatches() {
     );
 }
 
-async function writeAutoResult(slot, winner) {
+async function writeAutoResult(slot, winner, scores = {}) {
   const ref = db().collection('results').doc(slot);
   const existing = await ref.get();
   if (existing.exists && existing.data().source === 'manual') return; // manual always wins
-  await ref.set({ winner, source: 'auto', updatedAt: new Date().toISOString() });
+  await ref.set({ winner, source: 'auto', updatedAt: new Date().toISOString(), ...scores }, { merge: true });
+}
+
+// Per-team final score for a match, keyed to our team names (for the result recap).
+function scoresFor(match, event, map) {
+  const comps = event?.competitions?.[0]?.competitors || [];
+  const scoreOf = (our) => {
+    const c = comps.find((x) => x.team?.displayName === (map[our] || our));
+    return c && c.score != null ? Number(c.score) : null;
+  };
+  return { scoreA: scoreOf(match.team_a), scoreB: scoreOf(match.team_b) };
 }
 
 // One poll: look up ESPN only for the dates of matches that still need a result
@@ -61,7 +71,7 @@ export async function pollOnce() {
     const espnWinner = espnWinnerName(event);
     if (!espnWinner) continue;
     const winner = reverse[espnWinner] || espnWinner;
-    await writeAutoResult(match.slot, winner);
+    await writeAutoResult(match.slot, winner, scoresFor(match, event, map));
     out.updated += 1;
     console.log(`✓ Auto-recorded ${match.slot}: ${winner}`);
 
@@ -91,33 +101,74 @@ export async function pollOnce() {
   return out;
 }
 
-// Games currently in progress (ESPN state 'in'), mapped to our slots + live scores.
-// Read-only; used by the top-of-page live box. Returns [] when nothing is live.
-export async function liveGames() {
-  const [pending, config] = await Promise.all([unresolvedMatches(), getAppConfig()]);
-  if (pending.length === 0) return [];
-  const map = config.teamNameMap || {};
-  const dates = [...new Set(pending.map((m) => espnDateOf(m.kickoff_at)))];
-  const events = await fetchEspnEvents(dates);
+const hasRealTeams = (m) =>
+  m.team_a && !/winner|tbd/i.test(m.team_a) && m.team_b && !/winner|tbd/i.test(m.team_b);
+const RECAP_MS = 12 * 60 * 1000; // show a finished game's result for 12 minutes
 
-  const out = [];
-  for (const m of pending) {
-    const event = findEspnEvent(events, toEspn(m.team_a, map), toEspn(m.team_b, map));
-    if (!event || event.status?.type?.state !== 'in') continue;
-    const comps = event.competitions?.[0]?.competitors || [];
-    const scoreOf = (ourName) => {
-      const c = comps.find((x) => x.team?.displayName === toEspn(ourName, map));
-      return c ? Number(c.score) || 0 : 0;
-    };
-    out.push({
-      slot: m.slot,
-      round: ROUND_BY_SLOT[m.slot],
-      teamA: m.team_a,
-      teamB: m.team_b,
-      scoreA: scoreOf(m.team_a),
-      scoreB: scoreOf(m.team_b),
-      detail: event.status?.type?.detail || event.status?.type?.shortDetail || 'LIVE',
-    });
+// The single most relevant match to feature at the top of the page, one of:
+//   live     — a game in progress (ESPN 'in'), with the running score
+//   recent   — a game that finished within the last 12 min, with the final score
+//   upcoming — the next scheduled game, with its kickoff time (for a countdown)
+//   none     — nothing left
+// ESPN is only queried when a game is actually in its live window (kickoff passed,
+// not yet resolved); otherwise this is Firestore-only. `nextPollSeconds` tells the
+// client how soon to check again so idle periods stay cheap.
+export async function featuredMatch(nowMs = Date.parse(new Date().toISOString())) {
+  const [matchesSnap, resultsSnap, config] = await Promise.all([
+    db().collection('matches').get(),
+    db().collection('results').get(),
+    getAppConfig(),
+  ]);
+  const matches = matchesSnap.docs.map((d) => d.data());
+  const results = Object.fromEntries(resultsSnap.docs.map((d) => [d.id, d.data()]));
+  const map = config.teamNameMap || {};
+  const reverse = buildReverse(map);
+  const core = (m, extra) => ({ slot: m.slot, round: ROUND_BY_SLOT[m.slot], teamA: m.team_a, teamB: m.team_b, ...extra });
+
+  // 1) A match whose kickoff has passed but has no result yet → ask ESPN.
+  const inWindow = matches
+    .filter((m) => hasRealTeams(m) && !results[m.slot] && m.kickoff_at && Date.parse(m.kickoff_at) <= nowMs)
+    .sort((a, b) => Date.parse(a.kickoff_at) - Date.parse(b.kickoff_at));
+  if (inWindow.length) {
+    const events = await fetchEspnEvents([...new Set(inWindow.map((m) => espnDateOf(m.kickoff_at)))]);
+    for (const m of inWindow) {
+      const e = findEspnEvent(events, toEspn(m.team_a, map), toEspn(m.team_b, map));
+      const state = e?.status?.type?.state;
+      if (state === 'in') {
+        const { scoreA, scoreB } = scoresFor(m, e, map);
+        return { state: 'live', nextPollSeconds: 45, match: core(m, { scoreA, scoreB, detail: e.status.type.detail || 'LIVE' }) };
+      }
+      if (state === 'post') {
+        const { scoreA, scoreB } = scoresFor(m, e, map);
+        const w = espnWinnerName(e);
+        return { state: 'recent', nextPollSeconds: 60, match: core(m, { scoreA, scoreB, winner: reverse[w] || w }) };
+      }
+    }
   }
-  return out;
+
+  // 2) A result recorded within the recap window.
+  const recent = Object.entries(results)
+    .map(([slot, r]) => ({ slot, ...r }))
+    .filter((r) => r.updatedAt && nowMs - Date.parse(r.updatedAt) < RECAP_MS)
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0];
+  if (recent) {
+    const m = matches.find((x) => x.slot === recent.slot) || { slot: recent.slot };
+    return { state: 'recent', nextPollSeconds: 60, match: core(m, { scoreA: recent.scoreA ?? null, scoreB: recent.scoreB ?? null, winner: recent.winner }) };
+  }
+
+  // 3) Next scheduled game (teams may still be TBD for later rounds).
+  const upcoming = matches
+    .filter((m) => !results[m.slot] && m.kickoff_at && Date.parse(m.kickoff_at) > nowMs)
+    .sort((a, b) => Date.parse(a.kickoff_at) - Date.parse(b.kickoff_at))[0];
+  if (upcoming) {
+    const mins = (Date.parse(upcoming.kickoff_at) - nowMs) / 60000;
+    const nextPollSeconds = mins < 3 ? 60 : mins < 15 ? 120 : 600;
+    const known = hasRealTeams(upcoming);
+    return {
+      state: 'upcoming', nextPollSeconds,
+      match: { slot: upcoming.slot, round: ROUND_BY_SLOT[upcoming.slot], teamA: known ? upcoming.team_a : null, teamB: known ? upcoming.team_b : null, kickoff: upcoming.kickoff_at, known },
+    };
+  }
+
+  return { state: 'none', nextPollSeconds: 3600, match: null };
 }

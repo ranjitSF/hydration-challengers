@@ -1,21 +1,43 @@
 import express from 'express';
 import { db } from '../database/firestore.js';
 import { admin } from '../config/firebase.js';
-import { liveGames } from '../jobs/scorePoller.js';
+import { featuredMatch } from '../jobs/scorePoller.js';
 import { POINTS_BY_ROUND } from '../lib/scoring.js';
 
 const router = express.Router();
 
-// Public: currently-live games with scores. If a valid Bearer token is present, each
-// game also carries the caller's stake — which team they need and whether it's on track.
+// What the signed-in caller needs from the featured match, tailored to its state.
+function stakeFor(state, match, pick) {
+  if (!pick || !match) return null;
+  const inMatch = pick === match.teamA || pick === match.teamB;
+  const points = POINTS_BY_ROUND[match.round];
+  if (state === 'live') {
+    if (!inMatch) return { status: 'out' };
+    const mine = pick === match.teamA ? match.scoreA : match.scoreB;
+    const theirs = pick === match.teamA ? match.scoreB : match.scoreA;
+    return { need: pick, points, status: mine > theirs ? 'ahead' : mine < theirs ? 'behind' : 'level' };
+  }
+  if (state === 'recent') {
+    if (!inMatch) return { result: 'out' };
+    return { need: pick, points, result: pick === match.winner ? 'won' : 'missed' };
+  }
+  if (state === 'upcoming') {
+    if (!match.known) return null;
+    if (!inMatch) return { status: 'out' };
+    return { need: pick, points };
+  }
+  return null;
+}
+
+// Public: the featured match (live / recent / upcoming). With a valid Bearer token,
+// it also carries the caller's stake. `nextPollSeconds` lets the client back off.
 router.get('/', async (req, res) => {
   try {
-    const games = await liveGames();
+    const featured = await featuredMatch();
 
-    // Optional auth: attach the caller's picks if they're signed in.
     let picks = {};
     const header = req.headers.authorization;
-    if (games.length && header?.startsWith('Bearer ')) {
+    if (featured.match && header?.startsWith('Bearer ')) {
       try {
         const decoded = await admin.auth().verifyIdToken(header.slice(7));
         const email = decoded.email?.toLowerCase();
@@ -26,30 +48,13 @@ router.get('/', async (req, res) => {
       }
     }
 
-    const withStake = games.map((g) => {
-      const pick = picks[g.slot] || null;
-      const inMatch = pick === g.teamA || pick === g.teamB;
-      let you = null;
-      if (pick) {
-        if (inMatch) {
-          const mine = pick === g.teamA ? g.scoreA : g.scoreB;
-          const theirs = pick === g.teamA ? g.scoreB : g.scoreA;
-          you = {
-            need: pick,
-            points: POINTS_BY_ROUND[g.round],
-            status: mine > theirs ? 'ahead' : mine < theirs ? 'behind' : 'level',
-          };
-        } else {
-          you = { need: null, status: 'out' }; // their pick isn't in this match (bracket line already gone)
-        }
-      }
-      return { ...g, you };
-    });
-
-    res.json({ games: withStake });
+    if (featured.match) {
+      featured.match.you = stakeFor(featured.state, featured.match, picks[featured.match.slot] || null);
+    }
+    res.json(featured);
   } catch (error) {
-    console.error('Error fetching live games:', error);
-    res.status(500).json({ error: 'Failed to fetch live games' });
+    console.error('Error fetching featured match:', error);
+    res.status(500).json({ error: 'Failed to fetch featured match' });
   }
 });
 
