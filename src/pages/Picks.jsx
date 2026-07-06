@@ -1,19 +1,21 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { getMatches, getMyPicks, saveDraft, submitPicks, getConfig } from '../services';
+import { getMatches, getMyPicks, saveDraft, submitPicks, getConfig, getPlayerProjection } from '../services';
 import MatchCard from '../components/MatchCard';
 import BracketConnector from '../components/BracketConnector';
 import LoadingSpinner from '../components/LoadingSpinner';
 import LiveBanner from '../components/LiveBanner';
+import ScoreBreakdown from '../components/ScoreBreakdown';
 import { R16_SLOTS, QF_SLOTS, SF_SLOTS, FINAL_SLOT, deriveMatchup } from '../lib/bracket';
 import { resolveBracket } from '../lib/board';
 
 const ROUND_LABEL = { R16: 'Round of 16', QF: 'Quarter-final', SF: 'Semi-final', F: 'Final' };
 
 const Picks = () => {
-  const { authToken } = useAuth();
+  const { authToken, player } = useAuth();
   const [matches, setMatches] = useState(null);
   const [board, setBoard] = useState(null);
+  const [myProj, setMyProj] = useState(null);
   const [picks, setPicks] = useState({});
   const [finalGoals, setFinalGoals] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -60,6 +62,18 @@ const Picks = () => {
   }, [authToken]);
 
   const isLocked = lockAt ? nowTs >= lockAt.getTime() : false;
+
+  // Once locked, load this player's own scored bracket so we can show their score
+  // breakdown. Refresh every 60s so it tracks results as games finish.
+  useEffect(() => {
+    if (!isLocked || !player?.email) return;
+    let cancelled = false;
+    const load = () => getPlayerProjection(player.email).then((d) => { if (!cancelled) setMyProj(d); }).catch(() => {});
+    load();
+    const id = setInterval(load, 60000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [isLocked, player]);
+
   const matchBySlot = useMemo(() => (matches ? Object.fromEntries(matches.map((m) => [m.slot, m])) : {}), [matches]);
 
   const { resolved, optionsBySlot, openSlots, complete } = useMemo(
@@ -143,6 +157,12 @@ const Picks = () => {
   return (
     <div className="space-y-6 pb-28">
       <LiveBanner />
+      {isLocked && myProj && (
+        <div className="card p-4 space-y-2">
+          <h2 className="font-semibold text-white">Your score</h2>
+          <ScoreBreakdown r32={myProj.r32} bracket={myProj.bracket} total={myProj.currentTotal} />
+        </div>
+      )}
       <div className="card p-4 text-sm text-gray-300 space-y-1">
         <p className="font-semibold text-white">How your bracket works</p>
         <p>

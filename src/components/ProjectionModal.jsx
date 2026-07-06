@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getPlayerProjection } from '../services';
 import BracketTree from './BracketTree';
+import ScoreBreakdown from './ScoreBreakdown';
 
 const ordinal = (n) => {
   if (!n) return '—';
@@ -46,11 +47,12 @@ const FinishTab = ({ data, currentRank }) => {
 };
 
 const BracketTab = ({ data }) => (
-  <div className="space-y-2">
+  <div className="space-y-3">
     <BracketTree data={data} mode="results" />
     <p className="text-center text-[11px] text-gray-500">
       <span className="text-wc-accent">✓ advanced</span> · <span className="text-red-400">✗ knocked out</span> · outline = still in · 🏆 = their champion pick
     </p>
+    <ScoreBreakdown r32={data.r32} bracket={data.bracket} total={data.currentTotal} />
   </div>
 );
 
