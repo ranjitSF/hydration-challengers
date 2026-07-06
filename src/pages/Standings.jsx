@@ -4,6 +4,7 @@ import { getStandings } from '../services';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ProjectionModal from '../components/ProjectionModal';
 import LiveBanner from '../components/LiveBanner';
+import SyncStatus from '../components/SyncStatus';
 import { GitBranch, TrendingUp } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
@@ -135,6 +136,8 @@ const Standings = () => {
           </tbody>
         </table>
       </div>
+
+      <SyncStatus />
 
       <p className="text-center text-xs text-gray-500">
         Scoring: Round of 32 (carried in) = 3 pts/correct · R16 = 6 · QF = 10 · SF = 16 · Final = 30.
