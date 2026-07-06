@@ -140,8 +140,18 @@ export async function featuredMatch(nowMs = Date.parse(new Date().toISOString())
       }
       if (state === 'post') {
         const { scoreA, scoreB } = scoresFor(m, e, map);
-        const w = espnWinnerName(e);
-        return { state: 'recent', nextPollSeconds: 60, match: core(m, { scoreA, scoreB, winner: reverse[w] || w }) };
+        const winner = reverse[espnWinnerName(e)] || espnWinnerName(e);
+        // Self-heal: record the result the instant we observe it final, rather than
+        // waiting for the next scheduled poll. Any page with the live box open triggers
+        // this, so scores update within a poll cycle of the final whistle.
+        if (winner) {
+          await writeAutoResult(m.slot, winner, { scoreA, scoreB });
+          if (m.slot === 'F1') {
+            const goals = espnTotalGoals(e);
+            if (goals !== null) await db().collection('config').doc('app').set({ finalTotalGoals: goals }, { merge: true });
+          }
+        }
+        return { state: 'recent', nextPollSeconds: 60, match: core(m, { scoreA, scoreB, winner }) };
       }
     }
   }
