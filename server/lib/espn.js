@@ -36,16 +36,19 @@ export function espnDateOf(kickoffIso) {
 }
 
 export async function fetchEspnEvents(dates, fetchImpl = fetch) {
-  const events = [];
-  for (const d of dates) {
-    try {
-      const res = await fetchImpl(`${ESPN_SCOREBOARD}?dates=${d}`);
-      if (!res.ok) continue;
-      const data = await res.json();
-      events.push(...(data.events || []));
-    } catch {
-      /* skip a failed date, others still resolve */
-    }
-  }
-  return events;
+  // Fetch every date in parallel so the whole poll stays well under the serverless
+  // timeout even when several dates are outstanding. A failed date yields [].
+  const perDate = await Promise.all(
+    dates.map(async (d) => {
+      try {
+        const res = await fetchImpl(`${ESPN_SCOREBOARD}?dates=${d}`);
+        if (!res.ok) return [];
+        const data = await res.json();
+        return data.events || [];
+      } catch {
+        return [];
+      }
+    })
+  );
+  return perDate.flat();
 }
