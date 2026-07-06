@@ -52,6 +52,8 @@ function scoresFor(match, event, map) {
 // (zero network calls when everything's resolved). Resolves finished R16→Final
 // matches and the pending R32 game from the authoritative `winner` flag.
 export async function pollOnce() {
+  // Heartbeat so we can confirm the scheduler is actually hitting us and when.
+  await db().collection('config').doc('app').set({ lastPollAt: new Date().toISOString() }, { merge: true }).catch(() => {});
   const [pending, config] = await Promise.all([unresolvedMatches(), getAppConfig()]);
   const realR32 = config.realR32 || {};
   const map = config.teamNameMap || {};
