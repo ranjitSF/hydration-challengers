@@ -181,6 +181,7 @@ router.get('/:id/projection', async (req, res) => {
       base: projectPlayer(pl, realResults, realR32, eliminated).currentTotal,
     }));
     const bestRanks = computeBestRanks(withBase, realResults, realR32);
+    const best = bestRanks[target.playerId] || { rank: null, champion: null, firstPlaceScenarios: 0, totalScenarios: 0 };
 
     const statusOf = (picked, winner, decided, correct) => {
       if (!picked) return 'none';
@@ -227,7 +228,10 @@ router.get('/:id/projection', async (req, res) => {
       ceiling: proj.ceiling,
       remaining: proj.remaining,
       path: proj.path,
-      bestRank: bestRanks[target.playerId],
+      bestRank: best.rank,
+      bestChampion: best.champion,
+      firstPlaceScenarios: best.firstPlaceScenarios,
+      totalScenarios: best.totalScenarios,
       playerCount: allPlayers.length,
     });
   } catch (error) {

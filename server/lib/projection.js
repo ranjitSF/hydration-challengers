@@ -58,11 +58,16 @@ export function computeBestRanks(players, realResults, realR32) {
   const undecided = ALL_SLOTS.filter((s) => !realResults[s]); // bracket order (feeders first)
   const n = players.length;
   const bestRank = new Array(n).fill(Infinity);
+  const championAtBest = new Array(n).fill(null); // Final winner in the best-rank scenario
+  const firstPlace = new Array(n).fill(0); // how many scenarios put this player 1st
+  let total = 0;
   const bases = players.map((p) => p.base);
   const variablePts = undecided.map((s) => POINTS_BY_ROUND[ROUND_BY_SLOT[s]]);
   const W = {}; // hypothetical winners for undecided slots
 
   const scoreLeaf = () => {
+    total += 1;
+    const champion = W.F1 ?? realResults.F1 ?? null;
     const totals = new Array(n);
     for (let p = 0; p < n; p++) {
       let t = bases[p];
@@ -75,7 +80,8 @@ export function computeBestRanks(players, realResults, realR32) {
     for (let p = 0; p < n; p++) {
       let rank = 1;
       for (let q = 0; q < n; q++) if (totals[q] > totals[p]) rank++;
-      if (rank < bestRank[p]) bestRank[p] = rank;
+      if (rank === 1) firstPlace[p] += 1;
+      if (rank < bestRank[p]) { bestRank[p] = rank; championAtBest[p] = champion; }
     }
   };
 
@@ -96,6 +102,13 @@ export function computeBestRanks(players, realResults, realR32) {
   recurse(0);
 
   const map = {};
-  players.forEach((p, i) => { map[p.playerId] = bestRank[i] === Infinity ? null : bestRank[i]; });
+  players.forEach((p, i) => {
+    map[p.playerId] = {
+      rank: bestRank[i] === Infinity ? null : bestRank[i],
+      champion: championAtBest[i],
+      firstPlaceScenarios: firstPlace[i],
+      totalScenarios: total,
+    };
+  });
   return map;
 }

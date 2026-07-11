@@ -57,8 +57,9 @@ test('best rank: both finalists-backers can still finish 1st', () => {
     { playerId: 'b', base: 100, picksBySlot: { F1: 'Y' } },
   ];
   const best = computeBestRanks(players, results, realR32);
-  assert.equal(best.a, 1); // if X wins the Final
-  assert.equal(best.b, 1); // if Y wins the Final
+  assert.equal(best.a.rank, 1); // if X wins the Final
+  assert.equal(best.b.rank, 1); // if Y wins the Final
+  assert.equal(best.a.totalScenarios, 2); // only the Final is undecided → 2 outcomes
 });
 
 test('best rank: a trailing player who cannot catch up tops out at 2nd', () => {
@@ -71,6 +72,7 @@ test('best rank: a trailing player who cannot catch up tops out at 2nd', () => {
     { playerId: 'b', base: 200, picksBySlot: { F1: 'Y' } }, // already ahead, ceiling 230
   ];
   const best = computeBestRanks(players, results, realR32);
-  assert.equal(best.a, 2); // 100+30 = 130 < 200, never first
-  assert.equal(best.b, 1);
+  assert.equal(best.a.rank, 2); // 100+30 = 130 < 200, never first
+  assert.equal(best.a.firstPlaceScenarios, 0); // never wins in any scenario
+  assert.equal(best.b.rank, 1);
 });

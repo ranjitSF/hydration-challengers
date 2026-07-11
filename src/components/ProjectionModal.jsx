@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getPlayerProjection } from '../services';
 import BracketTree from './BracketTree';
 import ScoreBreakdown from './ScoreBreakdown';
+import { getFlag } from '../lib/teams';
 
 const ordinal = (n) => {
   if (!n) return '—';
@@ -12,10 +13,21 @@ const ordinal = (n) => {
 
 const FinishTab = ({ data, currentRank }) => {
   const best = data.bestRank;
+  const champ = data.bestChampion;
+  const wins = data.firstPlaceScenarios || 0;
+  const total = data.totalScenarios || 0;
   const canImprove = best && currentRank && best < currentRank;
-  const line = best === 1
-    ? (currentRank === 1 ? 'Leading — and can still finish first. 🏆' : 'Can still finish first. 🏆')
-    : `Best possible finish: ${ordinal(best)} — mathematically can't place higher.`;
+  const champTag = champ ? <>{getFlag(champ)} <b>{champ}</b></> : null;
+
+  let line;
+  if (best === 1 && currentRank === 1) {
+    line = <span className="accent-text">Leading the pool 🏆 — and still on top in <b>{wins}</b> of {total} ways the rest can play out.</span>;
+  } else if (best === 1) {
+    line = <span className="accent-text">Still alive for 1st 🏆{champTag && <> — your path: {champTag} win it all</>}. <span className="text-gray-400">You finish 1st in <b>{wins}</b> of {total} remaining scenarios.</span></span>;
+  } else {
+    line = <span className="text-gray-300">Best possible finish: <b>{ordinal(best)}</b> of {data.playerCount}.{champTag && <> Even in your top scenario ({champTag} champion),</>} {best - 1} {best - 1 === 1 ? 'player finishes' : 'players finish'} ahead in every outcome — out of the title race.</span>;
+  }
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
@@ -27,10 +39,10 @@ const FinishTab = ({ data, currentRank }) => {
         <div className="card bg-wc-navyDarker p-3 text-center">
           <div className="text-xs text-gray-400">Rank now → best possible</div>
           <div className="text-lg font-bold">{ordinal(currentRank)} <span className="text-gray-500">→</span> <span className={canImprove ? 'accent-text' : ''}>{ordinal(best)}</span></div>
-          <div className="text-[11px] text-gray-500">of {data.playerCount}</div>
+          <div className="text-[11px] text-gray-500">of {data.playerCount}{total ? ` · 1st in ${wins}/${total}` : ''}</div>
         </div>
       </div>
-      <p className={`text-sm text-center ${best === 1 ? 'accent-text' : 'text-gray-300'}`}>{line}</p>
+      <p className="text-sm text-center">{line}</p>
 
       {data.path.length === 0 ? (
         <p className="text-sm text-gray-400 text-center">No points left to win — every remaining team on this bracket is already scored or knocked out.</p>
