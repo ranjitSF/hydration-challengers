@@ -10,6 +10,16 @@ export const BRACKET_PAIRING = {
   F1: ['SF1', 'SF2'],
 };
 
+// Where each slot's winner advances to: the downstream match and the side it fills.
+// e.g. M89 -> { slot: 'QF1', field: 'team_a' }. Used to auto-populate the next round's
+// matchup once a game finishes, so the poller/live box can work on it.
+export const FEEDS_INTO = Object.fromEntries(
+  Object.entries(BRACKET_PAIRING).flatMap(([downstream, [a, b]]) => [
+    [a, { slot: downstream, field: 'team_a' }],
+    [b, { slot: downstream, field: 'team_b' }],
+  ])
+);
+
 export const R16_SLOTS = ['M89', 'M90', 'M91', 'M92', 'M93', 'M94', 'M95', 'M96'];
 export const QF_SLOTS = ['QF1', 'QF2', 'QF3', 'QF4'];
 export const SF_SLOTS = ['SF1', 'SF2'];

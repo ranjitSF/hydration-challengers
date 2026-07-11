@@ -4,7 +4,7 @@ import { verifyToken } from '../config/firebase.js';
 import { sanitizeString } from '../utils/validation.js';
 import { renameInPicks } from '../lib/standings.js';
 import { getAppConfig, resolveM87 } from '../lib/config.js';
-import { pollOnce } from '../jobs/scorePoller.js';
+import { pollOnce, propagateWinner } from '../jobs/scorePoller.js';
 
 const router = express.Router();
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || '').toLowerCase();
@@ -104,6 +104,7 @@ router.put('/results/:slot', async (req, res) => {
 
     const result = { winner, source: 'manual', updatedAt: new Date().toISOString() };
     await db().collection('results').doc(req.params.slot).set(result);
+    await propagateWinner(req.params.slot, winner); // advance into the next round's matchup
 
     // For the Final, optionally capture total goals for the tiebreaker.
     if (req.params.slot === 'F1' && req.body.totalGoals !== undefined && req.body.totalGoals !== '') {

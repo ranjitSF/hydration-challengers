@@ -1,7 +1,7 @@
 import { db } from '../database/firestore.js';
 import { getAppConfig, resolveM87 } from '../lib/config.js';
 import { fetchEspnEvents, findEspnEvent, espnWinnerName, espnTotalGoals, espnDateOf } from '../lib/espn.js';
-import { ROUND_BY_SLOT } from '../lib/bracket.js';
+import { ROUND_BY_SLOT, FEEDS_INTO } from '../lib/bracket.js';
 
 // The last Round-of-32 game (Colombia/Ghana). Its result opens M96 and updates the
 // R32 carry-in. Stop auto-polling it after this deadline (then manual entry).
@@ -36,6 +36,15 @@ async function writeAutoResult(slot, winner, scores = {}) {
   const existing = await ref.get();
   if (existing.exists && existing.data().source === 'manual') return; // manual always wins
   await ref.set({ winner, source: 'auto', updatedAt: new Date().toISOString(), ...scores }, { merge: true });
+  await propagateWinner(slot, winner);
+}
+
+// Advance a winner into the next round's matchup so the following game has real
+// teams (and can then be polled from ESPN). Idempotent.
+export async function propagateWinner(slot, winner) {
+  const dest = FEEDS_INTO[slot];
+  if (!dest || !winner) return;
+  await db().collection('matches').doc(dest.slot).set({ [dest.field]: winner }, { merge: true });
 }
 
 // Per-team final score for a match, keyed to our team names (for the result recap).
