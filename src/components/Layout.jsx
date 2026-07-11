@@ -30,6 +30,7 @@ const Layout = () => {
           <nav className="flex items-center gap-0.5 sm:gap-1">
             <NavLink to="/picks" className={linkClass}>Picks</NavLink>
             <NavLink to="/standings" className={linkClass}>Standings</NavLink>
+            <NavLink to="/scenario" className={linkClass}>What if?</NavLink>
             {isAdmin && <NavLink to="/admin" className={linkClass}>Admin</NavLink>}
             <button onClick={() => setShowRules(true)} className="px-3 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white">
               Rules

@@ -27,6 +27,7 @@ export const getPlayerBracket = (id) => request(`/players/${encodeURIComponent(i
 export const getPlayerProjection = (id) => request(`/players/${encodeURIComponent(id)}/projection`);
 export const getStandings = () => request('/standings');
 export const getLive = (token) => request('/live', { token });
+export const getScenario = () => request('/scenario');
 export const getConfig = () => request('/config');
 
 export const adminUpdateMatch = (id, body, token) => request(`/admin/matches/${id}`, { method: 'PUT', body, token });

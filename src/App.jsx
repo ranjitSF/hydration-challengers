@@ -6,6 +6,7 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import Picks from './pages/Picks';
 import Standings from './pages/Standings';
+import Scenario from './pages/Scenario';
 import Admin from './pages/Admin';
 
 function App() {
@@ -19,6 +20,7 @@ function App() {
 
           <Route element={<Layout />}>
             <Route path="/standings" element={<Standings />} />
+            <Route path="/scenario" element={<Scenario />} />
             <Route
               path="/picks"
               element={
